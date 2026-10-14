@@ -55,8 +55,17 @@
   const E_COL = ['#0066ff', '#7c3aed', '#0891b2', '#0b2a6f'];
   const F_COL = ['#e4572e', '#c2185b', '#d97706'];
   const GRIS = '#94a3b8';
+  const DEFAULT_TIP = '<b>Tip:</b> tocá una línea o un sector para ver sus datos.';
+  let activeInfoLayer = null;
   const info = $('#mapInfo');
-  const setInfo = h => info.innerHTML = h;
+  const setInfo = (h, layer = null) => {
+    info.innerHTML = h;
+    activeInfoLayer = layer;
+  };
+  const resetInfo = () => {
+    info.innerHTML = DEFAULT_TIP;
+    activeInfoLayer = null;
+  };
   const short = s => s.replace('Linea ', 'L');
 
   // sectores
@@ -66,7 +75,7 @@
     style: f => { const n = secNum(f), p = n === 5 || n === 6; return { color: secColor(n), weight: p ? 2.5 : 1.2, fillColor: p ? '#cbd5e1' : '#e2e8f0', fillOpacity: p ? .38 : .12, opacity: p ? .9 : .7, dashArray: p ? null : '6 6' }; },
     onEachFeature: (f, l) => {
       const n = secNum(f);
-      l.on('click', () => setInfo(`<h5>${f.properties.Name}</h5><div class="m">${int(f.properties.TRX_MES)} transacciones/mes · ${int(f.properties.TARJ_MES)} tarjetas<br>${fmt(featArea(f), 1)} km²</div>`));
+      l.on('click', () => setInfo(`<h5>${f.properties.Name}</h5><div class="m">${int(f.properties.TRX_MES)} transacciones/mes · ${int(f.properties.TARJ_MES)} tarjetas<br>${fmt(featArea(f), 1)} km²</div>`, lSect));
       l.bindTooltip('Sector ' + n, { permanent: true, direction: 'center', className: 'sector-label' });
     }
   });
@@ -84,11 +93,8 @@
         const secText = secs.length === 2 ? 'Sectores 5 y 6' : secs.length === 1 ? 'Sector ' + secs[0] : '';
         const d5 = f.properties.km_sector_5 ? ` · En Sector 5: <b>${fmt(f.properties.km_sector_5, 2)} km</b>` : '';
         const d6 = f.properties.km_sector_6 ? ` · En Sector 6: <b>${fmt(f.properties.km_sector_6, 2)} km</b>` : '';
-        setInfo(`<h5>${f.properties.Nombre}</h5><div class="m">Trazado actual afectado · <b>Ingresa a ${secText}</b>${d5}${d6}<br><small style="color:#64748b">Traza completa: incluye los tramos dentro y fuera del sector piloto.</small></div>`);
+        setInfo(`<h5>${f.properties.Nombre}</h5><div class="m">Trazado actual afectado · <b>Ingresa a ${secText}</b>${d5}${d6}<br><small style="color:#64748b">Traza completa: incluye los tramos dentro y fuera del sector piloto.</small></div>`, lActAfectados);
       });
-      const secs = f.properties.sectores_afectados || [];
-      const secText = secs.length === 2 ? 'Sectores 5 y 6' : secs.length === 1 ? 'Sector ' + secs[0] : '';
-      l.bindTooltip(`${f.properties.Nombre} (ingresa a ${secText})`, { sticky: true });
     }
   });
 
@@ -98,8 +104,7 @@
     onEachFeature: (f, l) => {
       l.on('mouseover', () => l.setStyle({ weight: 4.5, opacity: 1, color: '#475569' }));
       l.on('mouseout', () => lAct.resetStyle(l));
-      l.on('click', () => setInfo(`<h5>${f.properties.Nombre}</h5><div class="m">Red actual completa (ciudad) · Ramal: ${f.properties.Ramal}</div>`));
-      l.bindTooltip(`${f.properties.Nombre}`, { sticky: true });
+      l.on('click', () => setInfo(`<h5>${f.properties.Nombre}</h5><div class="m">Red actual completa (ciudad) · Ramal: ${f.properties.Ramal}</div>`, lAct));
     }
   });
 
@@ -116,8 +121,7 @@
     onEachFeature: (f, l) => {
       l.on('mouseover', () => l.setStyle({ fillOpacity: 0.65, weight: 2.5 }));
       l.on('mouseout', () => lCob.resetStyle(l));
-      l.on('click', () => setInfo(`<h5>Zona sin cobertura (&gt;350 m)</h5><div class="m">Sector ${f.properties.sector} · Superficie: <b>${fmt(f.properties.area_ha, 1)} ha</b> (${fmt(f.properties.area_km2, 2)} km²)<br>Distancia al trazado propuesto más cercano: <b>&gt; 350 metros</b></div>`));
-      l.bindTooltip(`Sector ${f.properties.sector} · Sin cobertura (&gt;350m): ${fmt(f.properties.area_ha, 1)} ha`, { sticky: true });
+      l.on('click', () => setInfo(`<h5>Zona sin cobertura (&gt;350 m)</h5><div class="m">Sector ${f.properties.sector} · Superficie: <b>${fmt(f.properties.area_ha, 1)} ha</b> (${fmt(f.properties.area_km2, 2)} km²)<br>Distancia al trazado propuesto más cercano: <b>&gt; 350 metros</b></div>`, lCob));
     }
   });
 
@@ -135,16 +139,16 @@
   // propuesta
   const mkProp = sector => {
     const idx = {};
-    return L.geoJSON(D.propuesta, {
+    const grp = L.geoJSON(D.propuesta, {
       pane: 'propuesta', filter: f => f.properties.sector === sector,
       style: f => { const i = (idx[f.properties.fid] = Object.keys(idx).length); return { color: (sector === 5 ? E_COL : F_COL)[(f.properties.fid - 1) % 4], weight: 5, opacity: .95 }; },
       onEachFeature: (f, l) => {
         l.on('mouseover', () => l.setStyle({ weight: 8 }));
         l.on('mouseout', () => l.setStyle({ weight: 5 }));
-        l.on('click', () => setInfo(`<h5>Línea ${f.properties.Linea} · ${f.properties.Recorrido}</h5><div class="m">Propuesta Sector ${sector} · ${fmt(f.properties.Longitud, 2)} km (ida y vuelta)</div>`));
-        l.bindTooltip(`Línea ${f.properties.Linea} · ${f.properties.Recorrido}`, { sticky: true });
+        l.on('click', () => setInfo(`<h5>Línea ${f.properties.Linea} · ${f.properties.Recorrido}</h5><div class="m">Propuesta Sector ${sector} · ${fmt(f.properties.Longitud, 2)} km (ida y vuelta)</div>`, grp));
       }
     });
+    return grp;
   };
   const lE = mkProp(5), lF = mkProp(6);
 
@@ -273,7 +277,23 @@
   // toggles
   const bind = (id, layer) => {
     const el = $(id);
-    if (el) el.addEventListener('change', e => e.target.checked ? layer.addTo(map) : map.removeLayer(layer));
+    if (el) {
+      el.addEventListener('change', e => {
+        if (e.target.checked) {
+          layer.addTo(map);
+        } else {
+          map.removeLayer(layer);
+          if (activeInfoLayer === layer) {
+            resetInfo();
+          }
+        }
+        // Si no queda ninguna capa activa, resetear siempre al texto por defecto
+        const anyChecked = [...document.querySelectorAll('input[id^="L-"]')].some(c => c.checked);
+        if (!anyChecked) {
+          resetInfo();
+        }
+      });
+    }
   };
   bind('#L-afectados', lActAfectados);
   bind('#L-actuales', lAct);
@@ -282,6 +302,8 @@
   bind('#L-F', lF);
   bind('#L-cob', lCob);
   document.querySelectorAll('input[id^="L-"]').forEach(c => { c.checked = false; });
+
+
 
   // foco
   const b56 = () => L.featureGroup([lE, lF]).getBounds();
