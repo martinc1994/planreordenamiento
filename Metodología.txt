@@ -1,0 +1,19 @@
+Metodología
+
+1-Recorté la capa de recorridos actuales con el polígono del Sector 5. De cada línea queda solo el tramo que cae dentro, no su recorrido completo.
+2-Incorporo las calles que utiliza el recorrido propuesto pero que están fuera del poligono, para que el analisis incluya todas las calles 
+3-Unifiqué las geometrías para contar una sola vez cada tramo por sentido de circulación: si varias líneas pasan por la misma calle en el mismo sentido, se cuenta una vez; si hay servicio en ambos sentidos (por ejemplo en avenidas), se cuentan los dos. Apliqué el mismo criterio a la red actual y a la propuesta, por lo que ambas cifras son comparables.
+4-Calculo los kilómetros de cada capa
+
+Resultado.
+
+Red actual en el Sector 5: 70,11 km
+Propuesta: 56,86 km
+56,86 / 70,11 = 81,1 %
+
+Red actual en el Sector 6: 76,8 km
+Propuesta: 69,29 km
+69,29 / 76,8 = 90,2 %
+
+Lineas Sector 5: L6, L17, L11
+Lineas Sector 6: L6, L11, L4, L8, L1, L10
