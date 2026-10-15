@@ -24,8 +24,8 @@
   /* ---------- HERO KPIs ---------- */
   const totTrx = 2637500;
   $('#heroKpis').innerHTML = [
-    ['7', 'sectores en que se divide la ciudad'],
-    [int(totTrx), 'transacciones mensuales analizadas']
+    ['7', 'Sectores en que se divide la ciudad'],
+    [int(totTrx), 'Transacciones mensuales analizadas']
   ].map(k => `<div class="kpi reveal"><b>${k[0]}</b><span>${k[1]}</span></div>`).join('');
 
   /* ---------- Tabla de sectores ---------- */
