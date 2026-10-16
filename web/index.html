@@ -85,22 +85,30 @@
           <div class="panel-block">
             <h4>Capas</h4>
             <label class="layer"><input type="checkbox" id="L-afectados"><i class="sw"
-                style="background:#475569"></i><span>1 · Trazos actuales afectados<small>32 ramales que ingresan a sectores 5 y 6</small></span></label>
+                style="background:#334155"></i><span>Trazos actuales afectados<small>31 ramales que al menos tocan los sectores 5 y 6</small></span></label>
             <label class="layer"><input type="checkbox" id="L-actuales"><i class="sw"
-                style="background:#94a3b8"></i><span>2 · Red actual completa<small>43 ramales urbanos (toda la ciudad)</small></span></label>
+                style="background:#64748b"></i><span>Red actual completa<small>42 ramales urbanos (toda la ciudad)</small></span></label>
             <label class="layer"><input type="checkbox" id="L-sectores"><i class="sw"
-                style="background:linear-gradient(90deg,#cbd5e1,#94a3b8)"></i><span>3 · Sectores<small>7 polígonos funcionales</small></span></label>
-            <label class="layer"><input type="checkbox" id="L-E"><i class="sw" style="background:#0066ff"></i><span>4a ·
-                Propuesta Línea E<small>Sector 5 · 4 recorridos</small></span></label>
-            <label class="layer"><input type="checkbox" id="L-F"><i class="sw" style="background:#e4572e"></i><span>4b ·
-                Propuesta Línea F<small>Sector 6 · 3 recorridos</small></span></label>
+                style="background:linear-gradient(90deg,#cbd5e1,#94a3b8)"></i><span>Sectores<small>7 polígonos funcionales</small></span></label>
+            <label class="layer"><input type="checkbox" id="L-E"><i class="sw" style="background:#0066ff"></i><span>Propuesta Línea E<small>Sector 5 · 4 recorridos</small></span></label>
+            <label class="layer"><input type="checkbox" id="L-F"><i class="sw" style="background:#e4572e"></i><span>Propuesta Línea F<small>Sector 6 · 3 recorridos</small></span></label>
             <label class="layer"><input type="checkbox" id="L-cob"><i class="sw"
-                style="background:rgba(239,68,68,0.7);border:1px dashed #dc2626"></i><span>5 · Zonas a &gt;350
+                style="background:rgba(239,68,68,0.7);border:1px dashed #dc2626"></i><span>Zonas a &gt;350
                 m<small>Áreas sin cobertura de la propuesta (rojo)</small></span></label>
           </div>
           <div class="panel-block" id="legendBlock">
             <h4>Ramales propuestos</h4>
             <div id="legend"></div>
+          </div>
+          <div class="panel-block" id="legendActualesBlock">
+            <div class="legend-header">
+              <h4>Ramales del sistema actual</h4>
+              <button id="btnClearActuales" type="button" class="btn-clear-legend" style="display:none">Limpiar</button>
+            </div>
+            <div class="legend-search-box">
+              <input type="text" id="searchActuales" placeholder="Buscar ramal o línea..." autocomplete="off">
+            </div>
+            <div id="legendActuales" class="legend-scroll"></div>
           </div>
         </aside>
         <div id="map" aria-label="Mapa interactivo"></div>
@@ -216,84 +224,6 @@
 
         <!-- PANEL SECTOR 5 -->
         <div class="model-panel on" id="modelSec5">
-          <div class="comp-grid">
-            <div class="comp-card">
-              <header>
-                <h4>1 · Recorridos y Trazos</h4>
-              </header>
-              <div class="comp-body">
-                <div class="comp-col">
-                  <small>Sistema Actual</small>
-                  <strong>9</strong>
-                  <span>Líneas actuales y ramales</span>
-                </div>
-                <div class="comp-col prop">
-                  <small>Modelo Propuesto</small>
-                  <strong>4</strong>
-                  <span>Línea E directa troncal</span>
-                </div>
-              </div>
-              <p class="comp-foot">En el sistema vigente son 4 los ramales principales que ingresan al sector 5, el resto son ramificaciones de otros de longitud mínima en kilómetros.</p>
-            </div>
-
-            <div class="comp-card">
-              <header>
-                <h4>2 · Flota en Circulación</h4>
-              </header>
-              <div class="comp-body">
-                <div class="comp-col">
-                  <small>Actual (Calle / Teórica)</small>
-                  <strong>—</strong>
-                  <span>Declaradas vs. en calle</span>
-                </div>
-                <div class="comp-col prop">
-                  <small>Propuesta (Pico / Valle)</small>
-                  <strong>—</strong>
-                  <span>Hora pico y no pico</span>
-                </div>
-              </div>
-              <p class="comp-foot">—</p>
-            </div>
-
-            <div class="comp-card">
-              <header>
-                <h4>3 · Tiempos de Vuelta</h4>
-              </header>
-              <div class="comp-body">
-                <div class="comp-col">
-                  <small>Actual por Vuelta</small>
-                  <strong>—</strong>
-                  <span>Ciclo completo</span>
-                </div>
-                <div class="comp-col prop">
-                  <small>Propuesta por Vuelta</small>
-                  <strong>—</strong>
-                  <span>Ciclo optimizado</span>
-                </div>
-              </div>
-              <p class="comp-foot">—</p>
-            </div>
-
-            <div class="comp-card">
-              <header>
-                <h4>4 · Frecuencias y Espera</h4>
-              </header>
-              <div class="comp-body">
-                <div class="comp-col">
-                  <small>Espera Actual Parada</small>
-                  <strong>—</strong>
-                  <span>Tiempo en parada</span>
-                </div>
-                <div class="comp-col prop">
-                  <small>Espera Propuesta</small>
-                  <strong>—</strong>
-                  <span>Intervalo planificado</span>
-                </div>
-              </div>
-              <p class="comp-foot">—</p>
-            </div>
-          </div>
-
           <div class="comp-table-card">
             <h4>Matriz comparativa de variables operativas · Sector 5 (Línea E)</h4>
             <div class="table-scroll">
@@ -351,84 +281,6 @@
 
         <!-- PANEL SECTOR 6 -->
         <div class="model-panel" id="modelSec6">
-          <div class="comp-grid">
-            <div class="comp-card">
-              <header>
-                <h4>1 · Recorridos y Trazos</h4>
-              </header>
-              <div class="comp-body">
-                <div class="comp-col">
-                  <small>Sistema Actual</small>
-                  <strong>—</strong>
-                  <span>Líneas actuales y ramales</span>
-                </div>
-                <div class="comp-col prop f">
-                  <small>Modelo Propuesto</small>
-                  <strong>—</strong>
-                  <span>Línea F directa troncal</span>
-                </div>
-              </div>
-              <p class="comp-foot">En el sistema vigente son 6 los ramales principales que ingresan al sector 6, el resto son ramificaciones de otros de longitud mínima en kilómetros.</p>
-            </div>
-
-            <div class="comp-card">
-              <header>
-                <h4>2 · Flota en Circulación</h4>
-              </header>
-              <div class="comp-body">
-                <div class="comp-col">
-                  <small>Actual (Calle / Teórica)</small>
-                  <strong>—</strong>
-                  <span>Declaradas vs. en calle</span>
-                </div>
-                <div class="comp-col prop f">
-                  <small>Propuesta (Pico / Valle)</small>
-                  <strong>—</strong>
-                  <span>Hora pico y no pico</span>
-                </div>
-              </div>
-              <p class="comp-foot">—</p>
-            </div>
-
-            <div class="comp-card">
-              <header>
-                <h4>3 · Tiempos de Vuelta</h4>
-              </header>
-              <div class="comp-body">
-                <div class="comp-col">
-                  <small>Actual por Vuelta</small>
-                  <strong>—</strong>
-                  <span>Ciclo completo</span>
-                </div>
-                <div class="comp-col prop f">
-                  <small>Propuesta por Vuelta</small>
-                  <strong>—</strong>
-                  <span>Ciclo optimizado</span>
-                </div>
-              </div>
-              <p class="comp-foot">—</p>
-            </div>
-
-            <div class="comp-card">
-              <header>
-                <h4>4 · Frecuencias y Espera</h4>
-              </header>
-              <div class="comp-body">
-                <div class="comp-col">
-                  <small>Espera Actual Parada</small>
-                  <strong>—</strong>
-                  <span>Tiempo en parada</span>
-                </div>
-                <div class="comp-col prop f">
-                  <small>Espera Propuesta</small>
-                  <strong>—</strong>
-                  <span>Intervalo planificado</span>
-                </div>
-              </div>
-              <p class="comp-foot">—</p>
-            </div>
-          </div>
-
           <div class="comp-table-card">
             <h4>Matriz comparativa de variables operativas · Sector 6 (Línea F)</h4>
             <div class="table-scroll">
@@ -444,7 +296,7 @@
                 <tbody>
                   <tr>
                     <td><b>Configuración de red</b></td>
-                    <td></td>
+                    <td>—</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>
@@ -483,14 +335,17 @@
             </div>
           </div>
         </div>
-
       </div>
     </section>
   </main>
 
   <footer>
     <div class="wrap">
-      <p class="small">Informe técnico · Análisis cartográfico del plan piloto de reordenamiento del transporte público.
+      <p class="medium">Informe técnico · Análisis cartográfico del plan piloto de reordenamiento del transporte público.
+      </p>
+      <p class="small">Desarrollo y Análisis de Datos: Martín Castillo.
+      </p>
+      <p class="small">Cartografía digital: Rodrigo Brizuela.
       </p>
     </div>
   </footer>

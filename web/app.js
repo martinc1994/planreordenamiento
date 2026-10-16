@@ -49,7 +49,7 @@
   ]).addTo(map);
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 });
   L.control.layers({ 'Claro': light, 'Calles (OSM)': osm }, null, { position: 'topright', collapsed: true }).addTo(map);
-  ['sectores', 'actuales', 'afectados', 'cobertura', 'propuesta'].forEach((p, i) => { map.createPane(p); map.getPane(p).style.zIndex = 400 + i * 10; });
+  ['sectores', 'actuales', 'afectados', 'cobertura', 'propuesta', 'highlight'].forEach((p, i) => { map.createPane(p); map.getPane(p).style.zIndex = 400 + i * 10; });
 
   const LINE_PAL = { 'Linea 1': '#b45309', 'Linea 3': '#7c3aed', 'Linea 4': '#0891b2', 'Linea 5': '#ea580c', 'Linea 6': '#be185d', 'Linea 7': '#15803d', 'Linea 8': '#1d4ed8', 'Linea 9': '#9333ea', 'Linea 10': '#a16207', 'Linea 11': '#0f766e', 'Linea 12': '#b91c1c', 'Linea 17': '#4d7c0f', 'Linea 18': '#c026d3', 'Linea 19': '#047857' };
   const E_COL = ['#0066ff', '#7c3aed', '#0891b2', '#0b2a6f'];
@@ -84,25 +84,25 @@
   // 1 · trazos actuales afectados (ramales que ingresan a sectores 5 y/o 6)
   const lActAfectados = L.geoJSON(D.actuales_afectados, {
     pane: 'afectados',
-    style: () => ({ color: '#334155', weight: 2.4, opacity: .75 }),
+    style: () => ({ color: '#526071', weight: 2.4, opacity: .78 }),
     onEachFeature: (f, l) => {
-      l.on('mouseover', () => l.setStyle({ weight: 5.5, opacity: 1, color: '#0f172a' }));
+      l.on('mouseover', () => l.setStyle({ weight: 5, opacity: 1, color: '#334155' }));
       l.on('mouseout', () => lActAfectados.resetStyle(l));
       l.on('click', () => {
         const secs = f.properties.sectores_afectados || [];
         const secText = secs.length === 2 ? 'Sectores 5 y 6' : secs.length === 1 ? 'Sector ' + secs[0] : '';
         const d5 = f.properties.km_sector_5 ? ` · En Sector 5: <b>${fmt(f.properties.km_sector_5, 2)} km</b>` : '';
         const d6 = f.properties.km_sector_6 ? ` · En Sector 6: <b>${fmt(f.properties.km_sector_6, 2)} km</b>` : '';
-        setInfo(`<h5>${f.properties.Nombre}</h5><div class="m">Trazado actual afectado · <b>Ingresa a ${secText}</b>${d5}${d6}<br><small style="color:#64748b">Traza completa: incluye los tramos dentro y fuera del sector piloto.</small></div>`, lActAfectados);
+        setInfo(`<h5>${f.properties.Nombre}</h5><div class="m">Trazado actual afectado · <b>Ingresa a ${secText}</b>${d5}${d6}<br><small style="color:#64748b">Traza completa (ida y vuelta)</small></div>`, lActAfectados);
       });
     }
   });
 
   // 2 · red actual completa (todos los ramales de la ciudad)
   const lAct = L.geoJSON(D.actuales, {
-    pane: 'actuales', style: () => ({ color: GRIS, weight: 1.8, opacity: .45 }),
+    pane: 'actuales', style: () => ({ color: '#94a3b8', weight: 1.8, opacity: .45 }),
     onEachFeature: (f, l) => {
-      l.on('mouseover', () => l.setStyle({ weight: 4.5, opacity: 1, color: '#475569' }));
+      l.on('mouseover', () => l.setStyle({ weight: 4.5, opacity: 1, color: '#64748b' }));
       l.on('mouseout', () => lAct.resetStyle(l));
       l.on('click', () => setInfo(`<h5>${f.properties.Nombre}</h5><div class="m">Red actual completa (ciudad) · Ramal: ${f.properties.Ramal}</div>`, lAct));
     }
@@ -261,7 +261,7 @@
   })();
 
 
-  // leyenda
+  // leyenda propuesta
   const leg = [];
   D.propuesta.features.forEach(f => {
     const c = (f.properties.sector === 5 ? E_COL : F_COL)[(f.properties.fid - 1) % 4];
@@ -272,6 +272,134 @@
     const r = e.target.closest('.lg-row'); if (!r) return;
     const grp = r.dataset.s === '5' ? lE : lF;
     grp.eachLayer(l => { if (l.feature.properties.fid == r.dataset.fid) map.fitBounds(l.getBounds(), { padding: [40, 40] }); });
+  });
+
+  // ---------- RAMALES DEL SISTEMA ACTUAL ----------
+  const cleanStr = s => (s || '').replace(/\ufffd/g, 'ñ').replace(/Chaaritos|Chaaritos/g, 'Chañaritos').replace(/Pea|Pea/g, 'Peña');
+  function calcKm(coords) {
+    let d = 0;
+    for (let i = 1; i < coords.length; i++) {
+      const lat0 = (coords[i][1] + coords[i - 1][1]) / 2 * Math.PI / 180;
+      const kx = 111.32 * Math.cos(lat0), ky = 110.57;
+      d += Math.hypot((coords[i][0] - coords[i - 1][0]) * kx, (coords[i][1] - coords[i - 1][1]) * ky);
+    }
+    return d;
+  }
+
+  // Ordenar numéricamente por línea (1, 3, 4, ... 19) y luego por nombre de ramal
+  const getLineNum = f => parseInt((f.properties.Line || '').replace(/\D/g, ''), 10) || 0;
+  const actSorted = D.actuales.features.slice().sort((a, b) => {
+    const nA = getLineNum(a), nB = getLineNum(b);
+    if (nA !== nB) return nA - nB;
+    return (a.properties.Ramal || '').localeCompare(b.properties.Ramal || '');
+  });
+
+  const lActHighlights = L.layerGroup().addTo(map);
+  const activeActualLayers = new Map(); // fid -> { grp, lineLayer }
+
+  const ACT_COL = '#526071'; // Tonalidad grisácea para todo el sistema actual
+
+  function renderActualesList(filterText = '') {
+    const term = filterText.toLowerCase().trim();
+    const rows = [];
+    actSorted.forEach(f => {
+      const fid = f.properties.fid;
+      const lineName = cleanStr(f.properties.Line);
+      const ramalName = cleanStr(f.properties.Ramal);
+      const fullName = cleanStr(f.properties.Nombre);
+      if (term && !fullName.toLowerCase().includes(term) && !lineName.toLowerCase().includes(term) && !ramalName.toLowerCase().includes(term)) {
+        return;
+      }
+      const col = ACT_COL;
+      const km = f.km || (f.km = calcKm(f.geometry.coordinates));
+      const isActive = activeActualLayers.has(fid);
+      rows.push(`<div class="lg-row ${isActive ? 'active' : ''}" data-fid="${fid}" title="${fullName} · ${fmt(km, 1)} km"><i style="background:${col}"></i><span>${fullName}</span><small style="color:#667085">${fmt(km, 1)} km</small></div>`);
+    });
+    const container = $('#legendActuales');
+    if (container) {
+      container.innerHTML = rows.length ? rows.join('') : '<div style="padding:10px 0;font-size:12px;color:var(--mut)">No se encontraron ramales</div>';
+    }
+  }
+
+  function toggleActual(fid) {
+    const f = D.actuales.features.find(x => x.properties.fid == fid);
+    if (!f) return;
+    const rowEl = $(`#legendActuales .lg-row[data-fid="${fid}"]`);
+    const btnClear = $('#btnClearActuales');
+
+    if (activeActualLayers.has(fid)) {
+      // DESACTIVAR
+      const item = activeActualLayers.get(fid);
+      lActHighlights.removeLayer(item.grp);
+      activeActualLayers.delete(fid);
+      if (rowEl) rowEl.classList.remove('active');
+
+      if (activeActualLayers.size === 0) {
+        if (btnClear) btnClear.style.display = 'none';
+        resetInfo();
+      } else {
+        if (btnClear) btnClear.textContent = `Limpiar (${activeActualLayers.size})`;
+      }
+    } else {
+      // ACTIVAR
+      const casing = L.geoJSON(f, {
+        pane: 'highlight',
+        interactive: false,
+        style: () => ({ color: '#ffffff', weight: 7.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' })
+      });
+      const lineLayer = L.geoJSON(f, {
+        pane: 'highlight',
+        interactive: true,
+        style: () => ({ color: ACT_COL, weight: 4.8, opacity: 1, lineCap: 'round', lineJoin: 'round' })
+      });
+
+      const grp = L.layerGroup([casing, lineLayer]).addTo(lActHighlights);
+      activeActualLayers.set(fid, { grp, lineLayer });
+      if (rowEl) rowEl.classList.add('active');
+
+      if (btnClear) {
+        btnClear.style.display = '';
+        btnClear.textContent = activeActualLayers.size > 1 ? `Limpiar (${activeActualLayers.size})` : 'Limpiar';
+      }
+
+      // Zoom al trazo
+      map.fitBounds(lineLayer.getBounds(), { padding: [40, 40], maxZoom: 15 });
+
+      // Click sobre el trazado resaltado en el mapa permite desactivarlo
+      lineLayer.on('click', () => {
+        toggleActual(fid);
+      });
+      lineLayer.on('mouseover', () => lineLayer.setStyle({ weight: 6.8, color: '#334155' }));
+      lineLayer.on('mouseout', () => lineLayer.setStyle({ weight: 4.8, color: ACT_COL }));
+
+      // Info card
+      const cName = cleanStr(f.properties.Nombre);
+      const km = f.km || calcKm(f.geometry.coordinates);
+      setInfo(`<h5>${cName}</h5><div class="m">Ramal actual · <b>${cleanStr(f.properties.Ramal)}</b><br>Longitud total: <b>${fmt(km, 1)} km</b></div>`, lActHighlights);
+    }
+  }
+
+  // Render inicial de ramales actuales
+  renderActualesList();
+
+  // Eventos de lista y búsqueda
+  $('#legendActuales')?.addEventListener('click', e => {
+    const r = e.target.closest('.lg-row');
+    if (!r) return;
+    const fid = parseInt(r.dataset.fid, 10);
+    toggleActual(fid);
+  });
+
+  $('#btnClearActuales')?.addEventListener('click', () => {
+    lActHighlights.clearLayers();
+    activeActualLayers.clear();
+    document.querySelectorAll('#legendActuales .lg-row.active').forEach(el => el.classList.remove('active'));
+    $('#btnClearActuales').style.display = 'none';
+    resetInfo();
+  });
+
+  $('#searchActuales')?.addEventListener('input', e => {
+    renderActualesList(e.target.value);
   });
 
   // toggles
@@ -288,7 +416,7 @@
           }
         }
         // Si no queda ninguna capa activa, resetear siempre al texto por defecto
-        const anyChecked = [...document.querySelectorAll('input[id^="L-"]')].some(c => c.checked);
+        const anyChecked = [...document.querySelectorAll('input[id^="L-"]')].some(c => c.checked) || (activeActualLayers && activeActualLayers.size > 0);
         if (!anyChecked) {
           resetInfo();
         }
@@ -400,6 +528,6 @@
   }), { threshold: .15 });
   document.querySelectorAll('.reveal,.chart,.bar-row .fill').forEach(el => io.observe(el));
   document.querySelectorAll('.chart').forEach(c => { const o = new IntersectionObserver(es => { if (es[0].isIntersecting) { c.querySelectorAll('[data-w]').forEach(f => f.style.width = f.dataset.w + '%'); o.disconnect(); } }, { threshold: .2 }); o.observe(c); });
-  document.querySelectorAll('.sec h2, .sec .sub, .roadmap, .impact, .card, .step, .comp-card, .model-intro').forEach(el => { el.classList.add('reveal'); io.observe(el); });
+  document.querySelectorAll('.sec h2, .sec .sub, .roadmap, .impact, .card, .step, .comp-table-card, .model-intro').forEach(el => { el.classList.add('reveal'); io.observe(el); });
   window.addEventListener('load', () => setTimeout(() => map.invalidateSize(), 300));
 })();
