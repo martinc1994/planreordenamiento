@@ -22,6 +22,7 @@
     <nav>
       <a href="#sectores">Sectorización</a>
       <a href="#mapa">Mapa</a>
+      <a href="#simulacion" id="navSimLink">Simulación</a>
       <a href="#comparativa">Resultados</a>
       <a href="#conclusiones">Conclusiones</a>
       <a href="#modelo">Modelo predictivo</a>
@@ -65,13 +66,31 @@
     </section>
 
     <section class="sec map-sec" id="mapa">
-      <div class="wrap">
-        <p class="eyebrow">02 · Mapa interactivo</p>
-        <h2>Sistema actual vs. propuesta</h2>
-        <p class="sub">Activá y desactivá capas, filtrá por sector y hacé clic sobre cualquier línea para ver sus datos.
-        </p>
+      <div class="wrap map-intro-wrap" id="simulacion">
+        <div>
+          <p class="eyebrow">02 · Cartografía & Simulación Operativa</p>
+          <h2>Sistema actual vs. propuesta</h2>
+          <p class="sub">Activá y desactivá capas individualmente o iniciá la simulación dinámica con parámetros operativos para la directiva.</p>
+        </div>
+        <div class="map-mode-selector">
+          <button type="button" class="mode-btn on" id="btnModeMap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+            Visor Cartográfico
+          </button>
+          <button type="button" class="mode-btn mode-sim" id="btnModeSim">
+            <span class="sim-dot-pulse"></span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="15" rx="2"/><path d="M3 10h18"/><circle cx="7" cy="15" r="1.5"/><circle cx="17" cy="15" r="1.5"/></svg>
+            Simulador de Transporte
+            <span class="badge-new">DIRECTIVA</span>
+          </button>
+          <button type="button" class="mode-btn btn-fullscreen" id="btnToggleFullscreen" title="Proyectar mapa en pantalla completa (F11)">
+            <svg class="icon-expand" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            <svg class="icon-compress" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+            <span id="txtBtnFullscreen">Pantalla Completa</span>
+          </button>
+        </div>
       </div>
-      <div class="map-shell">
+      <div class="map-shell" id="mapShell">
         <aside class="panel" id="panel">
           <div class="panel-block">
             <h4>Foco</h4>
@@ -83,21 +102,25 @@
             </div>
           </div>
           <div class="panel-block">
-            <h4>Capas</h4>
+            <h4>Capas Generales</h4>
             <label class="layer"><input type="checkbox" id="L-afectados"><i class="sw"
                 style="background:#334155"></i><span>Trazos actuales afectados<small>31 ramales que al menos tocan los sectores 5 y 6</small></span></label>
             <label class="layer"><input type="checkbox" id="L-actuales"><i class="sw"
                 style="background:#64748b"></i><span>Red actual completa<small>42 ramales urbanos (toda la ciudad)</small></span></label>
             <label class="layer"><input type="checkbox" id="L-sectores"><i class="sw"
                 style="background:linear-gradient(90deg,#cbd5e1,#94a3b8)"></i><span>Sectores<small>7 polígonos funcionales</small></span></label>
-            <label class="layer"><input type="checkbox" id="L-E"><i class="sw" style="background:#0066ff"></i><span>Propuesta Línea E<small>Sector 5 · 4 recorridos</small></span></label>
-            <label class="layer"><input type="checkbox" id="L-F"><i class="sw" style="background:#e4572e"></i><span>Propuesta Línea F<small>Sector 6 · 3 recorridos</small></span></label>
+            <label class="layer"><input type="checkbox" id="L-E"><i class="sw" style="background:#0066ff"></i><span>Propuesta Línea E<small>Sector 5 · Activar todos los 4 recorridos</small></span></label>
+            <label class="layer"><input type="checkbox" id="L-F"><i class="sw" style="background:#e4572e"></i><span>Propuesta Línea F<small>Sector 6 · Activar todos los 3 recorridos</small></span></label>
             <label class="layer"><input type="checkbox" id="L-cob"><i class="sw"
                 style="background:rgba(239,68,68,0.7);border:1px dashed #dc2626"></i><span>Zonas a &gt;350
                 m<small>Áreas sin cobertura de la propuesta (rojo)</small></span></label>
           </div>
           <div class="panel-block" id="legendBlock">
-            <h4>Ramales propuestos</h4>
+            <div class="legend-header">
+              <h4>Ramales propuestos</h4>
+              <button id="btnClearProp" type="button" class="btn-clear-legend" style="display:none">Limpiar</button>
+            </div>
+            <div class="legend-sub-hint">Hacé clic sobre un ramal para agregarlo o quitarlo individualmente:</div>
             <div id="legend"></div>
           </div>
           <div class="panel-block" id="legendActualesBlock">
@@ -111,9 +134,210 @@
             <div id="legendActuales" class="legend-scroll"></div>
           </div>
         </aside>
-        <div id="map" aria-label="Mapa interactivo"></div>
+        <div id="map" aria-label="Mapa interactivo">
+          <button type="button" class="map-floating-fs-btn" id="btnFloatingFullscreen" title="Proyectar en Pantalla Completa">
+            <svg class="icon-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            <svg class="icon-compress" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+          </button>
+        </div>
         <div class="map-info" id="mapInfo"><b>Tip:</b> tocá una línea o un sector.</div>
-      </div>
+
+        <!-- SIMULATION COCKPIT OVERLAY -->
+        <div class="sim-cockpit" id="simCockpit" style="display:none">
+          <!-- TOP TIMELINE & PLAYER BAR -->
+          <div class="sim-player-bar">
+            <div class="sim-time-display">
+              <div class="sim-clock" id="simClock">07:00:00</div>
+              <div class="sim-period-badge" id="simPeriodBadge">Hora Pico Mañana</div>
+            </div>
+
+            <div class="sim-player-controls">
+              <button type="button" class="sim-btn sim-btn-play" id="simBtnPlay" title="Reproducir / Pausar simulación">
+                <svg id="simIconPlay" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <svg id="simIconPause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              </button>
+              <button type="button" class="sim-btn sim-btn-icon" id="simBtnReset" title="Reiniciar a inicio de jornada">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              </button>
+              <div class="sim-speed-group">
+                <button type="button" class="sim-speed-btn" data-spd="1">1x</button>
+                <button type="button" class="sim-speed-btn" data-spd="5">5x</button>
+                <button type="button" class="sim-speed-btn on" data-spd="15">15x</button>
+                <button type="button" class="sim-speed-btn" data-spd="30">30x</button>
+                <button type="button" class="sim-speed-btn" data-spd="60">60x</button>
+                <button type="button" class="sim-speed-btn" data-spd="120">120x</button>
+              </div>
+            </div>
+
+            <div class="sim-timeline-box">
+              <div class="sim-timeline-track">
+                <span class="sim-timeline-label">06:00</span>
+                <input type="range" id="simTimeline" min="21600" max="46800" step="10" value="25200">
+                <span class="sim-timeline-label">13:00</span>
+              </div>
+            </div>
+
+            <div class="sim-bar-actions">
+              <button type="button" class="sim-btn-toggle-drawer on" id="simBtnToggleDrawer" title="Mostrar/Ocultar panel directivo">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                <span id="simDrawerBtnTxt">Panel Directiva</span>
+              </button>
+              <button type="button" class="sim-btn-close" id="simBtnClose" title="Salir de la simulación">✕</button>
+            </div>
+          </div>
+
+          <!-- EXECUTIVE DRAWER (CONFIG & METRICS) -->
+          <div class="sim-drawer open" id="simDrawer">
+            <div class="sim-drawer-content">
+
+              <!-- COLUMNA 1: CONFIGURACIÓN OPERATIVA -->
+              <div class="sim-col sim-col-config">
+                <div class="sim-col-header">
+                  <span class="sim-col-tag">Configuración</span>
+                  <h4>Parámetros Operativos</h4>
+                </div>
+
+                <div class="sim-field">
+                  <label for="simRouteSelect">Recorrido Propuesto (7 disponibles):</label>
+                  <select id="simRouteSelect" class="sim-select"></select>
+                </div>
+
+                <div class="sim-field-grid">
+                  <div class="sim-field">
+                    <label for="simFleetInput">Flota en circulación:
+                      <b class="sim-val-badge" id="simFleetVal">9 unidades</b>
+                    </label>
+                    <div class="sim-slider-row">
+                      <input type="range" id="simFleetInput" min="1" max="20" value="9" step="1">
+                    </div>
+                  </div>
+                  <div class="sim-field">
+                    <label for="simDwellInput">Detención en parada:
+                      <b class="sim-val-badge" id="simDwellVal">20 seg</b>
+                    </label>
+                    <div class="sim-slider-row">
+                      <input type="range" id="simDwellInput" min="5" max="45" value="20" step="5">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sim-dispatch-criterion-box" id="simDispatchBox">
+                  <span class="sim-dispatch-icon">⚖️</span>
+                  <span><b>Despacho Origen-Destino:</b> <span id="simDispatchSplitTxt">65% Cabecera Barrio (6 coches) · 35% Punto Céntrico (3 coches)</span></span>
+                </div>
+
+                <div class="sim-group-box">
+                  <span class="sim-box-title">Esquema de Paradas a Prueba (Metros)</span>
+                  <div class="sim-inputs-two">
+                    <div class="sim-input-pill">
+                      <label>En Periferia / Barrios</label>
+                      <div class="sim-input-wrap">
+                        <input type="number" id="simDistPeri" value="200" step="25" min="100" max="600">
+                        <span>m</span>
+                      </div>
+                    </div>
+                    <div class="sim-input-pill">
+                      <label>En Centro (Congestión)</label>
+                      <div class="sim-input-wrap">
+                        <input type="number" id="simDistCentro" value="350" step="25" min="150" max="800">
+                        <span>m</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sim-group-box">
+                  <span class="sim-box-title">Velocidades Comerciales (km/h)</span>
+                  <div class="sim-inputs-two">
+                    <div class="sim-input-pill">
+                      <label>En Periferia (20–25)</label>
+                      <div class="sim-input-wrap">
+                        <input type="number" id="simSpeedPeri" value="22" step="1" min="10" max="45">
+                        <span>km/h</span>
+                      </div>
+                    </div>
+                    <div class="sim-input-pill">
+                      <label>En Centro (15–20)</label>
+                      <div class="sim-input-wrap">
+                        <input type="number" id="simSpeedCentro" value="16" step="1" min="8" max="35">
+                        <span>km/h</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sim-toggles-row">
+                  <label class="sim-check-label"><input type="checkbox" id="simCheckStops" checked> <span>Ver paradas en mapa</span></label>
+                  <label class="sim-check-label"><input type="checkbox" id="simCheckCentroArea" checked> <span>Área Centro (Macrocentro)</span></label>
+                </div>
+              </div>
+
+              <!-- COLUMNA 2: RESULTADOS Y MÉTRICAS PARA DIRECTIVA -->
+              <div class="sim-col sim-col-metrics">
+                <div class="sim-col-header">
+                  <span class="sim-col-tag green">Resultados del Modelo</span>
+                  <h4>Métricas Operativas para la Directiva</h4>
+                </div>
+
+                <div class="sim-kpis-grid">
+                  <div class="sim-kpi-card highlight">
+                    <span class="sim-kpi-lbl">Frecuencia de paso (Headway)</span>
+                    <b class="sim-kpi-num" id="simKpiHeadway">—</b>
+                    <small class="sim-kpi-desc">Intervalo entre colectivos en cada parada</small>
+                  </div>
+                  <div class="sim-kpi-card">
+                    <span class="sim-kpi-lbl">Tiempo de Vuelta Completa (Ciclo)</span>
+                    <b class="sim-kpi-num" id="simKpiCycle">—</b>
+                    <small class="sim-kpi-desc">Ida y vuelta completa con detenciones y cabecera</small>
+                  </div>
+                  <div class="sim-kpi-card">
+                    <span class="sim-kpi-lbl">Velocidad Comercial Global</span>
+                    <b class="sim-kpi-num" id="simKpiSpeed">—</b>
+                    <small class="sim-kpi-desc">Efectiva de punta a punta con paradas</small>
+                  </div>
+                  <div class="sim-kpi-card">
+                    <span class="sim-kpi-lbl">Espera Media del Pasajero</span>
+                    <b class="sim-kpi-num" id="simKpiWait">—</b>
+                    <small class="sim-kpi-desc">Tiempo de espera teórico medio (H / 2)</small>
+                  </div>
+                </div>
+
+                <div class="sim-split-card">
+                  <div class="sim-split-header">
+                    <span>Distribución Territorial de Tiempo y Paradas</span>
+                    <b id="simTotalStopsBadge">0 paradas</b>
+                  </div>
+                  <div class="sim-split-bar">
+                    <div class="sim-split-seg peri" id="simBarPeri" style="width:65%" title="Periferia"></div>
+                    <div class="sim-split-seg centro" id="simBarCentro" style="width:35%" title="Centro"></div>
+                  </div>
+                  <div class="sim-split-legend">
+                    <div><span class="dot peri"></span> Periferia: <b id="simPeriStats">—</b></div>
+                    <div><span class="dot centro"></span> Centro: <b id="simCentroStats">—</b></div>
+                  </div>
+                </div>
+
+                <div class="sim-report-cta">
+                  <button type="button" class="sim-btn-report" id="simBtnCopyReport">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Copiar Ficha de Simulación para Directiva
+                  </button>
+                  <span class="sim-report-copied" id="simReportCopied" style="display:none">✓ ¡Copiado al portapapeles!</span>
+                </div>
+              </div>
+
+              <!-- COLUMNA 3: TELEMETRÍA DE UNIDADES EN CIRCULACIÓN -->
+              <div class="sim-col sim-col-fleet">
+                <div class="sim-col-header">
+                  <span class="sim-col-tag blue">Monitoreo en Vivo</span>
+                  <h4>Telemetría de la Flota</h4>
+                </div>
+                <div class="sim-fleet-scroll" id="simFleetList"></div>
+              </div>
+
+            </div>
+          </div>
+        </div>
     </section>
 
     <section class="sec alt" id="comparativa">

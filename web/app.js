@@ -136,21 +136,136 @@
     'F-3': 9  // Villa Angelina
   };
 
-  // propuesta
-  const mkProp = sector => {
-    const idx = {};
-    const grp = L.geoJSON(D.propuesta, {
-      pane: 'propuesta', filter: f => f.properties.sector === sector,
-      style: f => { const i = (idx[f.properties.fid] = Object.keys(idx).length); return { color: (sector === 5 ? E_COL : F_COL)[(f.properties.fid - 1) % 4], weight: 5, opacity: .95 }; },
-      onEachFeature: (f, l) => {
-        l.on('mouseover', () => l.setStyle({ weight: 8 }));
-        l.on('mouseout', () => l.setStyle({ weight: 5 }));
-        l.on('click', () => setInfo(`<h5>Línea ${f.properties.Linea} · ${f.properties.Recorrido}</h5><div class="m">Propuesta Sector ${sector} · ${fmt(f.properties.Longitud, 2)} km (ida y vuelta)</div>`, grp));
+  // ---------- RAMALES PROPUESTOS: GESTIÓN INDIVIDUAL ----------
+  const lPropHighlights = L.layerGroup().addTo(map);
+  const activeProposedLayers = new Map(); // key ('E-1', 'E-2', etc.) -> { grp, casing, lineLayer, feat, key }
+
+  const getPropKey = f => `${f.properties.Linea}-${f.properties.fid}`;
+  const getPropColor = f => (f.properties.sector === 5 ? E_COL : F_COL)[(f.properties.fid - 1) % (f.properties.sector === 5 ? E_COL.length : F_COL.length)];
+
+  function syncProposedMasterCheckboxes() {
+    const eFeatures = D.propuesta.features.filter(f => f.properties.sector === 5);
+    const fFeatures = D.propuesta.features.filter(f => f.properties.sector === 6);
+
+    const activeE = eFeatures.filter(f => activeProposedLayers.has(getPropKey(f))).length;
+    const cbE = $('#L-E');
+    if (cbE) {
+      if (activeE === eFeatures.length) {
+        cbE.checked = true; cbE.indeterminate = false;
+      } else if (activeE > 0) {
+        cbE.checked = false; cbE.indeterminate = true;
+      } else {
+        cbE.checked = false; cbE.indeterminate = false;
       }
+    }
+
+    const activeF = fFeatures.filter(f => activeProposedLayers.has(getPropKey(f))).length;
+    const cbF = $('#L-F');
+    if (cbF) {
+      if (activeF === fFeatures.length) {
+        cbF.checked = true; cbF.indeterminate = false;
+      } else if (activeF > 0) {
+        cbF.checked = false; cbF.indeterminate = true;
+      } else {
+        cbF.checked = false; cbF.indeterminate = false;
+      }
+    }
+
+    const btnClear = $('#btnClearProp');
+    if (btnClear) {
+      if (activeProposedLayers.size > 0) {
+        btnClear.style.display = '';
+        btnClear.textContent = activeProposedLayers.size > 1 ? `Limpiar (${activeProposedLayers.size})` : 'Limpiar';
+      } else {
+        btnClear.style.display = 'none';
+      }
+    }
+
+    checkAnyActiveLayers();
+  }
+
+  function toggleProposed(key, shouldZoom = true) {
+    const f = D.propuesta.features.find(x => getPropKey(x) === key);
+    if (!f) return;
+    const rowEl = $(`#legend .lg-row[data-key="${key}"]`);
+
+    if (activeProposedLayers.has(key)) {
+      // DESACTIVAR
+      const item = activeProposedLayers.get(key);
+      lPropHighlights.removeLayer(item.grp);
+      activeProposedLayers.delete(key);
+      if (rowEl) rowEl.classList.remove('active');
+      if (activeInfoLayer === item.grp) resetInfo();
+    } else {
+      // ACTIVAR
+      const col = getPropColor(f);
+      const casing = L.geoJSON(f, {
+        pane: 'propuesta',
+        interactive: false,
+        style: () => ({ color: '#ffffff', weight: 8.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' })
+      });
+      const lineLayer = L.geoJSON(f, {
+        pane: 'propuesta',
+        interactive: true,
+        style: () => ({ color: col, weight: 5.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round' })
+      });
+
+      const grp = L.layerGroup([casing, lineLayer]).addTo(lPropHighlights);
+      activeProposedLayers.set(key, { grp, casing, lineLayer, feat: f, key });
+      if (rowEl) rowEl.classList.add('active');
+
+      if (shouldZoom) {
+        map.fitBounds(lineLayer.getBounds(), { padding: [40, 40], maxZoom: 15 });
+      }
+
+      lineLayer.on('click', () => {
+        toggleProposed(key, false);
+      });
+      lineLayer.on('mouseover', () => lineLayer.setStyle({ weight: 8 }));
+      lineLayer.on('mouseout', () => lineLayer.setStyle({ weight: 5.5 }));
+
+      // Info card
+      const unReq = UNIDADES_OPTIMAS[key] || Math.max(1, Math.round(f.properties.Longitud / 2.5));
+      setInfo(`<h5>Línea ${f.properties.Linea} · ${f.properties.Recorrido}</h5>
+        <div class="m">Propuesta Sector ${f.properties.sector} · Longitud: <b>${fmt(f.properties.Longitud, 2)} km</b> (ida y vuelta)<br>
+        Flota proyectada: <b>${unReq} unidades</b> para frecuencia regular.</div>`, grp);
+    }
+
+    syncProposedMasterCheckboxes();
+    Flow.refresh();
+  }
+
+  // Renderizar listado de la leyenda propuesta
+  function renderProposedList() {
+    const container = $('#legend');
+    if (!container) return;
+    const rows = [];
+    D.propuesta.features.forEach(f => {
+      const key = getPropKey(f);
+      const c = getPropColor(f);
+      const isActive = activeProposedLayers.has(key);
+      rows.push(`<div class="lg-row ${isActive ? 'active' : ''}" data-key="${key}" data-s="${f.properties.sector}" data-fid="${f.properties.fid}">
+        <i style="background:${c}"></i>
+        <span style="flex:1;">Línea ${f.properties.Linea} · ${f.properties.Recorrido}</span>
+        <small style="color:#667085;font-variant-numeric:tabular-nums;">${fmt(f.properties.Longitud, 1)} km</small>
+      </div>`);
     });
-    return grp;
-  };
-  const lE = mkProp(5), lF = mkProp(6);
+    container.innerHTML = rows.join('');
+  }
+
+  renderProposedList();
+
+  $('#legend')?.addEventListener('click', e => {
+    const r = e.target.closest('.lg-row');
+    if (!r) return;
+    const key = r.dataset.key;
+    toggleProposed(key);
+  });
+
+  $('#btnClearProp')?.addEventListener('click', () => {
+    [...activeProposedLayers.keys()].forEach(k => toggleProposed(k, false));
+    resetInfo();
+  });
 
   /* ---- Partículas de sentido de circulación (siguen el orden de vértices de cada trazo) ---- */
   const Flow = (() => {
@@ -158,18 +273,18 @@
     cv.className = 'flow-canvas';
     map.getContainer().appendChild(cv);
     const ctx = cv.getContext('2d');
-    const groups = new Map(); // layerGroup -> [{pts, cum, total, color, parts:[offset]}]
+    const tracks = []; // [{key, pts, cum, total, color, n, phase}]
     const REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const SPEED = 220, TRAIL = 7; // m/s, puntos de estela
     let raf = null, last = 0, hidden = false, enabled = true;
 
-    function build(group, sector) {
-      const list = [];
-      group.eachLayer(l => {
-        const f = l.feature, col = (sector === 5 ? E_COL : F_COL)[(f.properties.fid - 1) % 4];
-        const key = f.properties.Linea + '-' + f.properties.fid;
+    function build() {
+      tracks.length = 0;
+      D.propuesta.features.forEach(f => {
+        const key = getPropKey(f);
+        const col = getPropColor(f);
         const nReq = UNIDADES_OPTIMAS[key] - 2 !== undefined ? UNIDADES_OPTIMAS[key] - 2 : Math.max(1, Math.round(f.properties.Longitud / 2.5));
-        if (nReq <= 0) return; // Si no tiene unidades asignadas en el plan piloto, no se muestran partículas
+        if (nReq <= 0) return;
 
         const parts = f.geometry.type === 'MultiLineString' ? f.geometry.coordinates : [f.geometry.coordinates];
         parts.forEach(pts => {
@@ -179,12 +294,12 @@
           for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot((pts[i][0] - pts[i - 1][0]) * kx, (pts[i][1] - pts[i - 1][1]) * ky));
           const total = cum[cum.length - 1];
           if (total < 50) return;
-          list.push({ pts, cum, total, color: col, n: nReq, phase: Math.random() });
+          tracks.push({ key, pts, cum, total, color: col, n: nReq, phase: Math.random() });
         });
       });
-      groups.set(group, list);
     }
-    function at(r, d) { // posición [lng,lat] a distancia d
+
+    function at(r, d) {
       const c = r.cum; let lo = 0, hi = c.length - 1;
       while (hi - lo > 1) { const m = (lo + hi) >> 1; c[m] <= d ? lo = m : hi = m; }
       const t = (d - c[lo]) / ((c[hi] - c[lo]) || 1), a = r.pts[lo], b = r.pts[hi];
@@ -202,31 +317,31 @@
       ctx.clearRect(0, 0, s.x, s.y);
       if (hidden || !enabled) return;
       const z = map.getZoom(), size = Math.max(3, Math.min(6.5, 2.2 + (z - 12) * .6));
-      groups.forEach((list, group) => {
-        if (!map.hasLayer(group)) return;
-        list.forEach(r => {
-          r.phase = (r.phase + (REDUCE ? 0 : dt * SPEED / r.total)) % 1;
-          const gap = 1 / r.n;
-          for (let k = 0; k < r.n; k++) {
-            for (let j = 0; j < TRAIL; j++) {
-              let u = ((r.phase + k * gap) % 1) - j * (16 / r.total);
-              if (u < 0) u += 1;
-              const p = map.latLngToContainerPoint(L.latLng(...at(r, u * r.total).reverse()));
-              if (p.x < -10 || p.y < -10 || p.x > s.x + 10 || p.y > s.y + 10) continue;
-              const a = 1 - j / TRAIL, rad = size * (0.45 + 0.55 * a);
-              ctx.globalAlpha = a;
-              ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, 6.2832);
-              ctx.fillStyle = j === 0 ? '#fff' : r.color; ctx.fill();
-              if (j === 0) { ctx.lineWidth = 2.2; ctx.strokeStyle = r.color; ctx.stroke(); }
-            }
+      tracks.forEach(r => {
+        // Solo renderizar si el ramal está activo individualmente
+        if (!activeProposedLayers.has(r.key)) return;
+
+        r.phase = (r.phase + (REDUCE ? 0 : dt * SPEED / r.total)) % 1;
+        const gap = 1 / r.n;
+        for (let k = 0; k < r.n; k++) {
+          for (let j = 0; j < TRAIL; j++) {
+            let u = ((r.phase + k * gap) % 1) - j * (16 / r.total);
+            if (u < 0) u += 1;
+            const p = map.latLngToContainerPoint(L.latLng(...at(r, u * r.total).reverse()));
+            if (p.x < -10 || p.y < -10 || p.x > s.x + 10 || p.y > s.y + 10) continue;
+            const a = 1 - j / TRAIL, rad = size * (0.45 + 0.55 * a);
+            ctx.globalAlpha = a;
+            ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, 6.2832);
+            ctx.fillStyle = j === 0 ? '#fff' : r.color; ctx.fill();
+            if (j === 0) { ctx.lineWidth = 2.2; ctx.strokeStyle = r.color; ctx.stroke(); }
           }
-        });
+        }
       });
       ctx.globalAlpha = 1;
     }
     function start() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
     function refresh() {
-      const any = [...groups.keys()].some(g => map.hasLayer(g));
+      const any = activeProposedLayers.size > 0;
       btn.style.display = any ? '' : 'none';
       if (any) start(); else if (raf) { cancelAnimationFrame(raf); raf = null; ctx.clearRect(0, 0, cv.width, cv.height); }
     }
@@ -249,30 +364,15 @@
     });
     const btn = new Toggle().addTo(map).getContainer();
     btn.style.display = 'none';
-    build(lE, 5); build(lF, 6);
+    build();
     resize();
     map.on('resize', resize);
     map.on('zoomstart', () => { hidden = true; });
     map.on('zoomend', () => { hidden = false; });
-    [lE, lF].forEach(g => { g.on('add remove', refresh); });
     document.addEventListener('visibilitychange', () => { if (document.hidden && raf) { cancelAnimationFrame(raf); raf = null; } else refresh(); });
     refresh();
     return { refresh };
   })();
-
-
-  // leyenda propuesta
-  const leg = [];
-  D.propuesta.features.forEach(f => {
-    const c = (f.properties.sector === 5 ? E_COL : F_COL)[(f.properties.fid - 1) % 4];
-    leg.push(`<div class="lg-row" data-s="${f.properties.sector}" data-fid="${f.properties.fid}"><i style="background:${c}"></i>Línea ${f.properties.Linea} · ${f.properties.Recorrido} <small style="color:#667085">${fmt(f.properties.Longitud, 1)} km</small></div>`);
-  });
-  $('#legend').innerHTML = leg.join('');
-  $('#legend').addEventListener('click', e => {
-    const r = e.target.closest('.lg-row'); if (!r) return;
-    const grp = r.dataset.s === '5' ? lE : lF;
-    grp.eachLayer(l => { if (l.feature.properties.fid == r.dataset.fid) map.fitBounds(l.getBounds(), { padding: [40, 40] }); });
-  });
 
   // ---------- RAMALES DEL SISTEMA ACTUAL ----------
   const cleanStr = s => (s || '').replace(/\ufffd/g, 'ñ').replace(/Chaaritos|Chaaritos/g, 'Chañaritos').replace(/Pea|Pea/g, 'Peña');
@@ -403,6 +503,15 @@
   });
 
   // toggles
+  const checkAnyActiveLayers = () => {
+    const anyChecked = [...document.querySelectorAll('input[id^="L-"]')].some(c => c.checked || c.indeterminate) ||
+      (activeActualLayers && activeActualLayers.size > 0) ||
+      (activeProposedLayers && activeProposedLayers.size > 0);
+    if (!anyChecked) {
+      resetInfo();
+    }
+  };
+
   const bind = (id, layer) => {
     const el = $(id);
     if (el) {
@@ -415,26 +524,49 @@
             resetInfo();
           }
         }
-        // Si no queda ninguna capa activa, resetear siempre al texto por defecto
-        const anyChecked = [...document.querySelectorAll('input[id^="L-"]')].some(c => c.checked) || (activeActualLayers && activeActualLayers.size > 0);
-        if (!anyChecked) {
-          resetInfo();
-        }
+        checkAnyActiveLayers();
       });
     }
   };
   bind('#L-afectados', lActAfectados);
   bind('#L-actuales', lAct);
   bind('#L-sectores', lSect);
-  bind('#L-E', lE);
-  bind('#L-F', lF);
   bind('#L-cob', lCob);
-  document.querySelectorAll('input[id^="L-"]').forEach(c => { c.checked = false; });
 
+  // Toggle master para Línea E (Sector 5)
+  $('#L-E')?.addEventListener('change', e => {
+    const isChecked = e.target.checked;
+    e.target.indeterminate = false;
+    D.propuesta.features.filter(f => f.properties.sector === 5).forEach(f => {
+      const key = getPropKey(f);
+      if (isChecked && !activeProposedLayers.has(key)) {
+        toggleProposed(key, false);
+      } else if (!isChecked && activeProposedLayers.has(key)) {
+        toggleProposed(key, false);
+      }
+    });
+    checkAnyActiveLayers();
+  });
 
+  // Toggle master para Línea F (Sector 6)
+  $('#L-F')?.addEventListener('change', e => {
+    const isChecked = e.target.checked;
+    e.target.indeterminate = false;
+    D.propuesta.features.filter(f => f.properties.sector === 6).forEach(f => {
+      const key = getPropKey(f);
+      if (isChecked && !activeProposedLayers.has(key)) {
+        toggleProposed(key, false);
+      } else if (!isChecked && activeProposedLayers.has(key)) {
+        toggleProposed(key, false);
+      }
+    });
+    checkAnyActiveLayers();
+  });
+
+  document.querySelectorAll('input[id^="L-"]').forEach(c => { c.checked = false; c.indeterminate = false; });
 
   // foco
-  const b56 = () => L.featureGroup([lE, lF]).getBounds();
+  const b56 = () => L.geoJSON(D.propuesta).getBounds();
   const bSec = n => { let b; lSect.eachLayer(l => { if (secNum(l.feature) === n) b = l.getBounds(); }); return b; };
   function focus(f) {
     document.querySelectorAll('#focus button').forEach(b => b.classList.toggle('on', b.dataset.f === f));
@@ -529,5 +661,946 @@
   document.querySelectorAll('.reveal,.chart,.bar-row .fill').forEach(el => io.observe(el));
   document.querySelectorAll('.chart').forEach(c => { const o = new IntersectionObserver(es => { if (es[0].isIntersecting) { c.querySelectorAll('[data-w]').forEach(f => f.style.width = f.dataset.w + '%'); o.disconnect(); } }, { threshold: .2 }); o.observe(c); });
   document.querySelectorAll('.sec h2, .sec .sub, .roadmap, .impact, .card, .step, .comp-table-card, .model-intro').forEach(el => { el.classList.add('reveal'); io.observe(el); });
+
+  /* ==========================================================================
+     MOTOR Y ESTUDIO DE SIMULACIÓN DE TRANSPORTE PÚBLICO (DIRECTIVA)
+     ========================================================================== */
+  const CENTRO_BOUNDS = {
+    latMin: -26.840,
+    latMax: -26.820,
+    lngMin: -65.220,
+    lngMax: -65.195
+  };
+
+  function isPointInCentro(lng, lat) {
+    return lat >= CENTRO_BOUNDS.latMin && lat <= CENTRO_BOUNDS.latMax &&
+           lng >= CENTRO_BOUNDS.lngMin && lng <= CENTRO_BOUNDS.lngMax;
+  }
+
+  function haversineM(c1, c2) {
+    const lat0 = (c1[1] + c2[1]) / 2 * Math.PI / 180;
+    const kx = 111320 * Math.cos(lat0), ky = 110570;
+    return Math.hypot((c2[0] - c1[0]) * kx, (c2[1] - c1[1]) * ky);
+  }
+
+  const Sim = {
+    active: false,
+    routeKey: 'E-1',
+    routeFeature: null,
+    fleetCount: 9,
+    distPeri: 200,      // m
+    distCentro: 350,    // m
+    speedPeri: 22,      // km/h
+    speedCentro: 16,    // km/h
+    dwellTime: 20,      // s
+    timeSpeed: 15,      // multiplicador de velocidad
+    currentTime: 25200, // 07:00:00 (segundos desde las 00:00)
+    startTime: 21600,   // 06:00:00
+    endTime: 46800,     // 13:00:00
+    isPlaying: true,
+    rafId: null,
+    lastTs: 0,
+    showStops: true,
+    showCentroArea: true,
+
+    // Geometría y paradas
+    totalMeters: 0,
+    periMeters: 0,
+    centroMeters: 0,
+    stops: [],
+    cumDists: [],
+    coords: [],
+
+    // Capas de mapa Leaflet
+    layerGroup: L.layerGroup().addTo(map),
+    layerRoute: null,
+    layerStops: L.layerGroup(),
+    layerBuses: L.layerGroup(),
+    layerCentroArea: null,
+
+    // Unidades
+    buses: [],
+    selectedBusId: null
+  };
+
+  Sim.layerGroup.addLayer(Sim.layerStops);
+  Sim.layerGroup.addLayer(Sim.layerBuses);
+
+  // Inicializar polígono del área central (Macrocentro)
+  const centroPolyCoords = [
+    [CENTRO_BOUNDS.latMax, CENTRO_BOUNDS.lngMin],
+    [CENTRO_BOUNDS.latMax, CENTRO_BOUNDS.lngMax],
+    [CENTRO_BOUNDS.latMin, CENTRO_BOUNDS.lngMax],
+    [CENTRO_BOUNDS.latMin, CENTRO_BOUNDS.lngMin]
+  ];
+  Sim.layerCentroArea = L.polygon(centroPolyCoords, {
+    pane: 'sectores',
+    color: '#ea580c',
+    weight: 1.8,
+    dashArray: '6 6',
+    fillColor: '#f97316',
+    fillOpacity: 0.08,
+    interactive: true
+  }).bindTooltip('Área Central / Macrocentro (Zona de Congestión · Paradas c/ 350m · 15-20 km/h)', { sticky: true });
+
+  function getCoordAtDist(d) {
+    const cum = Sim.cumDists, pts = Sim.coords;
+    if (!cum.length || pts.length < 2) return { coord: [-65.20, -26.83], angle: 0, segIndex: 0 };
+    const target = ((d % Sim.totalMeters) + Sim.totalMeters) % Sim.totalMeters;
+    let lo = 0, hi = cum.length - 1;
+    while (hi - lo > 1) {
+      const m = (lo + hi) >> 1;
+      cum[m] <= target ? lo = m : hi = m;
+    }
+    const span = (cum[hi] - cum[lo]) || 1;
+    const t = Math.max(0, Math.min(1, (target - cum[lo]) / span));
+    const a = pts[lo], b = pts[hi];
+    const lng = a[0] + (b[0] - a[0]) * t;
+    const lat = a[1] + (b[1] - a[1]) * t;
+    const angle = Math.atan2((b[1] - a[1]) * 1.1, (b[0] - a[0])) * 180 / Math.PI;
+    return { coord: [lng, lat], angle, segIndex: lo };
+  }
+
+  function setupRouteGeometry(feature) {
+    Sim.routeFeature = feature;
+    const parts = feature.geometry.type === 'MultiLineString' ? feature.geometry.coordinates : [feature.geometry.coordinates];
+    let allCoords = [];
+    parts.forEach(p => { allCoords = allCoords.concat(p); });
+    Sim.coords = allCoords;
+
+    const cum = [0];
+    let peri = 0, centro = 0;
+    let maxLat = -999, maxLatIdx = 0;
+
+    for (let i = 1; i < allCoords.length; i++) {
+      const d = haversineM(allCoords[i - 1], allCoords[i]);
+      cum.push(cum[i - 1] + d);
+      const midLng = (allCoords[i - 1][0] + allCoords[i][0]) / 2;
+      const midLat = (allCoords[i - 1][1] + allCoords[i][1]) / 2;
+      if (isPointInCentro(midLng, midLat)) {
+        centro += d;
+      } else {
+        peri += d;
+      }
+      if (allCoords[i][1] > maxLat) {
+        maxLat = allCoords[i][1];
+        maxLatIdx = i;
+      }
+    }
+    Sim.cumDists = cum;
+    Sim.totalMeters = cum[cum.length - 1] || 1;
+    Sim.periMeters = peri;
+    Sim.centroMeters = centro;
+    Sim.dCentro = cum[maxLatIdx] || (Sim.totalMeters * 0.55);
+    Sim.dVuelta = Sim.totalMeters - Sim.dCentro;
+    Sim.originCoord = allCoords[0];
+    Sim.apexCoord = allCoords[maxLatIdx];
+
+    // Dibujar traza del recorrido en mapa con alto contraste y claridad
+    if (Sim.layerRoute) Sim.layerGroup.removeLayer(Sim.layerRoute);
+    const col = getPropColor(feature);
+    const casing = L.geoJSON(feature, {
+      pane: 'highlight',
+      interactive: false,
+      style: () => ({ color: '#ffffff', weight: 9.5, opacity: 0.98, lineCap: 'round', lineJoin: 'round' })
+    });
+    const mainLine = L.geoJSON(feature, {
+      pane: 'highlight',
+      interactive: true,
+      style: () => ({ color: col, weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' })
+    }).bindTooltip(`Recorrido: Línea ${feature.properties.Linea} · ${feature.properties.Recorrido}`, { sticky: true });
+
+    // Marcadores visuales de las dos Cabeceras de Despacho (Origen y Destino)
+    const barrioIcon = L.divIcon({
+      className: 'sim-terminal-marker',
+      iconSize: [220, 28],
+      iconAnchor: [110, 14],
+      html: `<div class="sim-terminal-pin barrio">🚩 Cabecera ${feature.properties.Recorrido} (65% flota)</div>`
+    });
+    const mBarrio = L.marker([Sim.originCoord[1], Sim.originCoord[0]], { icon: barrioIcon, pane: 'highlight' });
+
+    const centroIcon = L.divIcon({
+      className: 'sim-terminal-marker',
+      iconSize: [220, 28],
+      iconAnchor: [110, 14],
+      html: `<div class="sim-terminal-pin centro">🏛️ Retorno Macrocentro (35% flota)</div>`
+    });
+    const mCentro = L.marker([Sim.apexCoord[1], Sim.apexCoord[0]], { icon: centroIcon, pane: 'highlight' });
+
+    Sim.layerRoute = L.layerGroup([casing, mainLine, mBarrio, mCentro]);
+    Sim.layerGroup.addLayer(Sim.layerRoute);
+  }
+
+  function generateStops() {
+    Sim.layerStops.clearLayers();
+    const stops = [];
+    const total = Sim.totalMeters;
+    let curDist = 0;
+    let stopIdx = 1;
+
+    // Cabecera inicial (km 0.0)
+    const origin = getCoordAtDist(0);
+    const inCentroOrig = isPointInCentro(origin.coord[0], origin.coord[1]);
+    stops.push({
+      id: 1,
+      index: 0,
+      coord: origin.coord,
+      distMeters: 0,
+      isCentro: inCentroOrig,
+      name: `Cabecera Barrio (km 0.0) · ${inCentroOrig ? 'Centro' : 'Periferia'}`
+    });
+
+    while (curDist < total - 60) {
+      const pt = getCoordAtDist(curDist);
+      const inCentro = isPointInCentro(pt.coord[0], pt.coord[1]);
+      const stepDist = inCentro ? Sim.distCentro : Sim.distPeri;
+      curDist += stepDist;
+      if (curDist >= total - 60) break;
+
+      const stopPt = getCoordAtDist(curDist);
+      const stopInCentro = isPointInCentro(stopPt.coord[0], stopPt.coord[1]);
+      stops.push({
+        id: stopIdx + 1,
+        index: stopIdx,
+        coord: stopPt.coord,
+        distMeters: curDist,
+        isCentro: stopInCentro,
+        name: `Parada P-${stopIdx + 1} (${stopInCentro ? 'Centro · Congestión' : 'Periferia / Barrio'}) · km ${(curDist / 1000).toFixed(2)}`
+      });
+      stopIdx++;
+    }
+
+    Sim.stops = stops;
+
+    if (Sim.showStops) {
+      stops.forEach(s => {
+        const marker = L.circleMarker([s.coord[1], s.coord[0]], {
+          pane: 'highlight',
+          radius: s.index === 0 ? 6.5 : 4.5,
+          color: s.isCentro ? '#b45309' : '#0369a1',
+          weight: 1.8,
+          fillColor: s.isCentro ? '#f59e0b' : '#38bdf8',
+          fillOpacity: 0.9
+        }).bindTooltip(`<b>${s.name}</b><br><small>Esquema a prueba: ${s.isCentro ? Sim.distCentro + 'm (Centro)' : Sim.distPeri + 'm (Barrio)'}</small>`, { direction: 'top' });
+        Sim.layerStops.addLayer(marker);
+      });
+    }
+  }
+
+  function setupBuses() {
+    Sim.layerBuses.clearLayers();
+    Sim.buses = [];
+    const count = Sim.fleetCount;
+
+    // Criterio operativo de inicio de servicio:
+    // 60-70% inicia en Cabecera de Periferia / Barrio (Sentido Ida: Barrio -> Centro)
+    // 30-40% inicia en Punto Céntrico (Sentido Vuelta: Centro -> Barrio)
+    const fleetPeri = Math.max(1, Math.round(count * 0.65));
+    const fleetCentro = Math.max(1, count - fleetPeri);
+
+    const dCentro = Sim.dCentro || (Sim.totalMeters * 0.55);
+    const dVuelta = Sim.totalMeters - dCentro;
+
+    // Actualizar indicador en UI
+    const txtSplit = $('#simDispatchSplitTxt');
+    if (txtSplit) {
+      txtSplit.textContent = `${Math.round(fleetPeri / count * 100)}% Cabecera Barrio (${fleetPeri} coches) · ${Math.round(fleetCentro / count * 100)}% Punto Céntrico (${fleetCentro} coches)`;
+    }
+
+    // Progreso simulado según tiempo transcurrido desde inicio de servicio (06:00 = 21600s)
+    const elapsedSec = Math.max(0, (Sim.currentTime || 21600) - (Sim.startTime || 21600));
+    const avgSpeedMs = (((Sim.speedPeri || 22) + (Sim.speedCentro || 16)) / 2) * (1000 / 3600);
+    const progressMeters = elapsedSec * avgSpeedMs;
+
+    let busIndex = 0;
+
+    // Grupo 1: Cabecera Periferia / Barrio (Ida)
+    for (let k = 0; k < fleetPeri; k++) {
+      busIndex++;
+      const s0 = (k / fleetPeri) * dCentro;
+      const s = (s0 + progressMeters) % Sim.totalMeters;
+      const pos = getCoordAtDist(s);
+      const inCentro = isPointInCentro(pos.coord[0], pos.coord[1]);
+      const isIda = s < dCentro;
+      const idNum = busIndex.toString().padStart(2, '0');
+
+      const icon = L.divIcon({
+        className: 'sim-bus-marker',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        html: `
+          <div class="sim-bus-pin ${inCentro ? 'centro' : ''}" data-bus="${busIndex}" title="Unidad ${idNum} · ${isIda ? 'Ida (Barrio ➔ Centro)' : 'Vuelta (Centro ➔ Barrio)'}">
+            <span>${idNum}</span>
+          </div>
+          <div class="sim-bus-status-tag" style="background:${isIda ? '#0284c7' : '#ea580c'};">${isIda ? 'Ida ➔ Centro' : 'Vuelta ➔ Barrio'}</div>
+        `
+      });
+
+      const marker = L.marker([pos.coord[1], pos.coord[0]], {
+        icon,
+        pane: 'highlight',
+        zIndexOffset: 1000 + busIndex
+      });
+
+      marker.on('click', () => {
+        Sim.selectedBusId = busIndex;
+        highlightBusInList(busIndex);
+        map.panTo(marker.getLatLng(), { animate: true });
+      });
+
+      Sim.layerBuses.addLayer(marker);
+
+      Sim.buses.push({
+        id: busIndex,
+        idStr: idNum,
+        s,
+        s0,
+        leg: isIda ? 'ida' : 'vuelta',
+        origin: 'Cabecera Barrio',
+        state: 'driving',
+        dwellTimer: 0,
+        speed: inCentro ? Sim.speedCentro : Sim.speedPeri,
+        isCentro: inCentro,
+        marker
+      });
+    }
+
+    // Grupo 2: Punto Céntrico / Macrocentro (Vuelta)
+    for (let j = 0; j < fleetCentro; j++) {
+      busIndex++;
+      const s0 = dCentro + (j / fleetCentro) * dVuelta;
+      const s = (s0 + progressMeters) % Sim.totalMeters;
+      const pos = getCoordAtDist(s);
+      const inCentro = isPointInCentro(pos.coord[0], pos.coord[1]);
+      const isIda = s < dCentro;
+      const idNum = busIndex.toString().padStart(2, '0');
+
+      const icon = L.divIcon({
+        className: 'sim-bus-marker',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        html: `
+          <div class="sim-bus-pin ${inCentro ? 'centro' : ''}" data-bus="${busIndex}" title="Unidad ${idNum} · ${isIda ? 'Ida (Barrio ➔ Centro)' : 'Vuelta (Centro ➔ Barrio)'}">
+            <span>${idNum}</span>
+          </div>
+          <div class="sim-bus-status-tag" style="background:${isIda ? '#0284c7' : '#ea580c'};">${isIda ? 'Ida ➔ Centro' : 'Vuelta ➔ Barrio'}</div>
+        `
+      });
+
+      const marker = L.marker([pos.coord[1], pos.coord[0]], {
+        icon,
+        pane: 'highlight',
+        zIndexOffset: 1000 + busIndex
+      });
+
+      marker.on('click', () => {
+        Sim.selectedBusId = busIndex;
+        highlightBusInList(busIndex);
+        map.panTo(marker.getLatLng(), { animate: true });
+      });
+
+      Sim.layerBuses.addLayer(marker);
+
+      Sim.buses.push({
+        id: busIndex,
+        idStr: idNum,
+        s,
+        s0,
+        leg: isIda ? 'ida' : 'vuelta',
+        origin: 'Punto Céntrico',
+        state: 'driving',
+        dwellTimer: 0,
+        speed: inCentro ? Sim.speedCentro : Sim.speedPeri,
+        isCentro: inCentro,
+        marker
+      });
+    }
+
+    renderFleetList();
+  }
+
+  function updateKPIs() {
+    const distTotalKm = Sim.totalMeters / 1000;
+    const distPeriKm = Sim.periMeters / 1000;
+    const distCentroKm = Sim.centroMeters / 1000;
+
+    const numStopsPeri = Sim.stops.filter(s => !s.isCentro).length;
+    const numStopsCentro = Sim.stops.filter(s => s.isCentro).length;
+    const totalStops = Sim.stops.length;
+
+    // Tiempos de marcha pura
+    const timeDrivePeriMin = (distPeriKm / Sim.speedPeri) * 60;
+    const timeDriveCentroMin = (distCentroKm / Sim.speedCentro) * 60;
+
+    // Detención en paradas: ~60% de paradas con ascenso/descenso efectivo
+    const activeStopsFactor = 0.65;
+    const timeDwellMin = (totalStops * activeStopsFactor * Sim.dwellTime) / 60;
+
+    // Regulación en cabecera (6% de colchón operativo)
+    const timeBufferMin = (timeDrivePeriMin + timeDriveCentroMin + timeDwellMin) * 0.06;
+
+    // Ciclo completo (vuelta redonda)
+    const timeCycleMin = timeDrivePeriMin + timeDriveCentroMin + timeDwellMin + timeBufferMin;
+    const headwayMin = timeCycleMin / Sim.fleetCount;
+    const avgWaitMin = headwayMin / 2;
+    const effectiveSpeedKmH = distTotalKm / ((timeCycleMin || 1) / 60);
+
+    // Actualizar elementos DOM
+    $('#simKpiHeadway').innerHTML = `${fmt(headwayMin, 1)} <span style="font-size:14px;font-weight:500;">min</span>`;
+    $('#simKpiCycle').innerHTML = `${fmt(timeCycleMin, 0)} <span style="font-size:14px;font-weight:500;">min</span> <small style="font-size:11px;color:#64748b;font-weight:normal;">(${(timeCycleMin / 60).toFixed(1)} h)</small>`;
+    $('#simKpiSpeed').innerHTML = `${fmt(effectiveSpeedKmH, 1)} <span style="font-size:14px;font-weight:500;">km/h</span>`;
+    $('#simKpiWait').innerHTML = `${fmt(avgWaitMin, 1)} <span style="font-size:14px;font-weight:500;">min</span>`;
+
+    // Barras proporcionales
+    const totalTimeDriving = timeDrivePeriMin + timeDriveCentroMin;
+    const pctPeri = Math.round((timeDrivePeriMin / (totalTimeDriving || 1)) * 100);
+    const pctCentro = 100 - pctPeri;
+
+    $('#simBarPeri').style.width = pctPeri + '%';
+    $('#simBarCentro').style.width = pctCentro + '%';
+    $('#simPeriStats').textContent = `${fmt(timeDrivePeriMin, 0)} min (${pctPeri}%) · ${numStopsPeri} paradas`;
+    $('#simCentroStats').textContent = `${fmt(timeDriveCentroMin, 0)} min (${pctCentro}%) · ${numStopsCentro} paradas`;
+    $('#simTotalStopsBadge').textContent = `${totalStops} paradas en ${(distTotalKm).toFixed(1)} km`;
+
+    // Criterio de despacho
+    const fleetPeri = Math.max(1, Math.round(Sim.fleetCount * 0.65));
+    const fleetCentro = Math.max(1, Sim.fleetCount - fleetPeri);
+    const txtSplit = $('#simDispatchSplitTxt');
+    if (txtSplit) {
+      txtSplit.textContent = `${Math.round(fleetPeri / Sim.fleetCount * 100)}% Cabecera Barrio (${fleetPeri} coches) · ${Math.round(fleetCentro / Sim.fleetCount * 100)}% Punto Céntrico (${fleetCentro} coches)`;
+    }
+  }
+
+  function formatTime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function updateClockDisplay(sec) {
+    const clockEl = $('#simClock');
+    if (clockEl) clockEl.textContent = formatTime(sec);
+
+    const badge = $('#simPeriodBadge');
+    if (badge) {
+      if (sec >= 25200 && sec <= 34200) { // 07:00 a 09:30
+        badge.textContent = '🔴 HORA PICO MAÑANA (07:00–09:30)';
+        badge.className = 'sim-period-badge';
+      } else if (sec > 34200 && sec < 43200) { // 09:30 a 12:00
+        badge.textContent = '🟢 HORA VALLE MEDIA MAÑANA';
+        badge.className = 'sim-period-badge valle';
+      } else if (sec >= 43200 && sec <= 48600) { // 12:00 a 13:30
+        badge.textContent = '🔴 HORA PICO MEDIODÍA';
+        badge.className = 'sim-period-badge';
+      } else {
+        badge.textContent = '🟡 SERVICIO REGULAR';
+        badge.className = 'sim-period-badge valle';
+      }
+    }
+  }
+
+  function renderFleetList() {
+    const listEl = $('#simFleetList');
+    if (!listEl) return;
+    const html = Sim.buses.map(b => {
+      const isSel = Sim.selectedBusId === b.id;
+      const legBadge = b.state === 'stopped' ? '<span class="sim-unit-badge stop">En parada</span>' :
+        b.leg === 'ida' ? '<span class="sim-unit-badge peri">Ida · A Centro</span>' : '<span class="sim-unit-badge centro">Vuelta · A Barrio</span>';
+      const kmProg = (b.s / 1000).toFixed(1);
+      return `
+        <div class="sim-unit-card ${isSel ? 'active' : ''}" data-bus="${b.id}">
+          <div class="sim-unit-id">
+            <span>🚍 Coche ${b.idStr}</span>
+            ${legBadge}
+          </div>
+          <div class="sim-unit-speed">
+            <span>km ${kmProg} · ${b.origin} · ${b.state === 'stopped' ? '0 km/h' : Math.round(b.speed) + ' km/h'}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    listEl.innerHTML = html;
+  }
+
+  function highlightBusInList(id) {
+    document.querySelectorAll('.sim-unit-card').forEach(c => {
+      c.classList.toggle('active', parseInt(c.dataset.bus, 10) === id);
+    });
+  }
+
+  $('#simFleetList')?.addEventListener('click', e => {
+    const card = e.target.closest('.sim-unit-card');
+    if (!card) return;
+    const id = parseInt(card.dataset.bus, 10);
+    Sim.selectedBusId = id;
+    highlightBusInList(id);
+    const bus = Sim.buses.find(b => b.id === id);
+    if (bus) {
+      map.panTo(bus.marker.getLatLng(), { animate: true });
+    }
+  });
+
+  function simStep(dt) {
+    Sim.currentTime += dt;
+    if (Sim.currentTime > Sim.endTime) {
+      Sim.currentTime = Sim.startTime;
+    }
+
+    updateClockDisplay(Sim.currentTime);
+
+    const slider = $('#simTimeline');
+    if (slider && document.activeElement !== slider) {
+      slider.value = Sim.currentTime;
+    }
+
+    const dCentro = Sim.dCentro || (Sim.totalMeters * 0.55);
+
+    // Actualizar movimiento de cada colectivo
+    Sim.buses.forEach(bus => {
+      if (bus.state === 'stopped') {
+        bus.dwellTimer -= dt;
+        if (bus.dwellTimer <= 0) {
+          bus.state = 'driving';
+          bus.dwellTimer = 0;
+        }
+      } else {
+        // Regulación anti-bunching: verificar separación con la unidad que precede
+        let tooClose = false;
+        for (const other of Sim.buses) {
+          if (other.id === bus.id) continue;
+          const gap = (other.s - bus.s + Sim.totalMeters) % Sim.totalMeters;
+          if (gap > 0 && gap < 90) {
+            tooClose = true;
+            break;
+          }
+        }
+
+        const pt = getCoordAtDist(bus.s);
+        bus.isCentro = isPointInCentro(pt.coord[0], pt.coord[1]);
+        const baseSpeed = bus.isCentro ? Sim.speedCentro : Sim.speedPeri;
+        bus.speed = tooClose ? Math.max(4, baseSpeed * 0.35) : baseSpeed;
+
+        const speedMs = bus.speed * (1000 / 3600);
+        const ds = speedMs * dt;
+        const prevS = bus.s;
+        const nextS = (bus.s + ds) % Sim.totalMeters;
+
+        // Sentido de recorrido dinámico: Ida (0 -> dCentro) o Vuelta (dCentro -> total)
+        bus.leg = (nextS < dCentro) ? 'ida' : 'vuelta';
+
+        // Comprobar si cruza una parada
+        const crossedStop = Sim.stops.find(s => {
+          if (nextS >= prevS) {
+            return s.distMeters >= prevS && s.distMeters < nextS;
+          } else {
+            return s.distMeters >= prevS || s.distMeters < nextS;
+          }
+        });
+
+        // Detención probabilística en paradas con pasajeros
+        if (crossedStop && Math.random() < 0.65) {
+          bus.state = 'stopped';
+          bus.dwellTimer = Sim.dwellTime;
+          bus.s = crossedStop.distMeters;
+        } else {
+          bus.s = nextS;
+        }
+      }
+
+      // Actualizar posición exacta de marcador en Leaflet
+      const pos = getCoordAtDist(bus.s);
+      bus.marker.setLatLng([pos.coord[1], pos.coord[0]]);
+
+      const el = bus.marker.getElement();
+      if (el) {
+        const pin = el.querySelector('.sim-bus-pin');
+        const tag = el.querySelector('.sim-bus-status-tag');
+        if (pin) {
+          pin.classList.toggle('centro', bus.isCentro);
+          pin.classList.toggle('stopped', bus.state === 'stopped');
+        }
+        if (tag) {
+          if (bus.state === 'stopped') {
+            tag.textContent = `🚏 En parada (${Math.ceil(bus.dwellTimer)}s)`;
+            tag.style.background = '#dc2626';
+          } else {
+            const dirLabel = bus.leg === 'ida' ? 'Ida ➔ Centro' : 'Vuelta ➔ Barrio';
+            tag.textContent = `${dirLabel} · ${Math.round(bus.speed)}km/h`;
+            tag.style.background = bus.leg === 'ida' ? '#0284c7' : '#ea580c';
+          }
+        }
+      }
+    });
+
+    if (Math.random() < 0.25) {
+      renderFleetList();
+    }
+  }
+
+  function simLoop(ts) {
+    if (!Sim.active) return;
+    if (Sim.isPlaying) {
+      if (!Sim.lastTs) Sim.lastTs = ts;
+      const realDt = Math.min(0.1, (ts - Sim.lastTs) / 1000 || 0);
+      Sim.lastTs = ts;
+      const simDt = realDt * Sim.timeSpeed;
+      simStep(simDt);
+    } else {
+      Sim.lastTs = ts;
+    }
+    Sim.rafId = requestAnimationFrame(simLoop);
+  }
+
+  function startSimulation() {
+    if (!Sim.active) return;
+    Sim.isPlaying = true;
+    $('#simIconPlay').style.display = 'none';
+    $('#simIconPause').style.display = '';
+    if (!Sim.rafId) {
+      Sim.lastTs = performance.now();
+      Sim.rafId = requestAnimationFrame(simLoop);
+    }
+  }
+
+  function pauseSimulation() {
+    Sim.isPlaying = false;
+    $('#simIconPlay').style.display = '';
+    $('#simIconPause').style.display = 'none';
+  }
+
+  function resetSimulation() {
+    Sim.currentTime = 23400; // 06:30:00
+    setupBuses();
+    updateClockDisplay(Sim.currentTime);
+    const slider = $('#simTimeline');
+    if (slider) slider.value = Sim.currentTime;
+    updateKPIs();
+  }
+
+  function selectSimRoute(routeKey, fitMap = true) {
+    Sim.routeKey = routeKey;
+    const feat = D.propuesta.features.find(f => getPropKey(f) === routeKey);
+    if (!feat) return;
+
+    // Actualizar unidades sugeridas
+    const optimalFleet = UNIDADES_OPTIMAS[routeKey] || Math.max(1, Math.round(feat.properties.Longitud / 2.5));
+    Sim.fleetCount = optimalFleet;
+    const fleetInput = $('#simFleetInput');
+    if (fleetInput) {
+      fleetInput.value = optimalFleet;
+      $('#simFleetVal').textContent = `${optimalFleet} unidades`;
+    }
+
+    // Configurar geometría y mapa
+    setupRouteGeometry(feat);
+    generateStops();
+    setupBuses();
+    updateKPIs();
+
+    if (fitMap && Sim.layerRoute) {
+      map.fitBounds(Sim.layerRoute.getBounds(), { padding: [50, 50], maxZoom: 15 });
+    }
+
+    const selectEl = $('#simRouteSelect');
+    if (selectEl && selectEl.value !== routeKey) {
+      selectEl.value = routeKey;
+    }
+  }
+
+  function setSimulationMode(enabled) {
+    Sim.active = enabled;
+    const cockpit = $('#simCockpit');
+    const btnModeMap = $('#btnModeMap');
+    const btnModeSim = $('#btnModeSim');
+
+    if (enabled) {
+      if (cockpit) cockpit.style.display = '';
+      if (btnModeMap) btnModeMap.classList.remove('on');
+      if (btnModeSim) btnModeSim.classList.add('on');
+
+      // Añadir polígono de centro si está tildado
+      if (Sim.showCentroArea && Sim.layerCentroArea && !map.hasLayer(Sim.layerCentroArea)) {
+        Sim.layerCentroArea.addTo(map);
+      }
+
+      selectSimRoute(Sim.routeKey, true);
+      startSimulation();
+    } else {
+      pauseSimulation();
+      if (Sim.rafId) {
+        cancelAnimationFrame(Sim.rafId);
+        Sim.rafId = null;
+      }
+      if (cockpit) cockpit.style.display = 'none';
+      if (btnModeMap) btnModeMap.classList.add('on');
+      if (btnModeSim) btnModeSim.classList.remove('on');
+
+      // Limpiar capas temporales de simulación
+      Sim.layerStops.clearLayers();
+      Sim.layerBuses.clearLayers();
+      if (Sim.layerRoute) Sim.layerGroup.removeLayer(Sim.layerRoute);
+      if (Sim.layerCentroArea && map.hasLayer(Sim.layerCentroArea)) {
+        map.removeLayer(Sim.layerCentroArea);
+      }
+    }
+  }
+
+  // Inicializar UI y listeners de simulación
+  function initSimulationUI() {
+    const routeSelect = $('#simRouteSelect');
+    if (routeSelect) {
+      const options = D.propuesta.features.map(f => {
+        const key = getPropKey(f);
+        return `<option value="${key}">Línea ${f.properties.Linea} · ${f.properties.Recorrido} (${fmt(f.properties.Longitud, 1)} km · Sector ${f.properties.sector})</option>`;
+      });
+      routeSelect.innerHTML = options.join('');
+      routeSelect.addEventListener('change', e => {
+        selectSimRoute(e.target.value, true);
+      });
+    }
+
+    // Play/Pause
+    $('#simBtnPlay')?.addEventListener('click', () => {
+      if (Sim.isPlaying) pauseSimulation(); else startSimulation();
+    });
+
+    // Reset
+    $('#simBtnReset')?.addEventListener('click', resetSimulation);
+
+    // Botones de velocidad de simulación
+    document.querySelectorAll('.sim-speed-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sim-speed-btn').forEach(b => b.classList.remove('on'));
+        btn.classList.add('on');
+        Sim.timeSpeed = parseFloat(btn.dataset.spd) || 15;
+      });
+    });
+
+    // Slider de tiempo (Timeline scrubber)
+    const timeline = $('#simTimeline');
+    if (timeline) {
+      timeline.addEventListener('input', e => {
+        Sim.currentTime = parseFloat(e.target.value);
+        updateClockDisplay(Sim.currentTime);
+        // Distribuir unidades al nuevo instante temporal
+        setupBuses();
+      });
+    }
+
+    // Flota slider
+    $('#simFleetInput')?.addEventListener('input', e => {
+      Sim.fleetCount = parseInt(e.target.value, 10);
+      $('#simFleetVal').textContent = `${Sim.fleetCount} unidades`;
+      setupBuses();
+      updateKPIs();
+    });
+
+    // Dwell slider
+    $('#simDwellInput')?.addEventListener('input', e => {
+      Sim.dwellTime = parseInt(e.target.value, 10);
+      $('#simDwellVal').textContent = `${Sim.dwellTime} seg`;
+      updateKPIs();
+    });
+
+    // Distancias de paradas
+    $('#simDistPeri')?.addEventListener('change', e => {
+      Sim.distPeri = Math.max(80, parseInt(e.target.value, 10) || 200);
+      generateStops();
+      updateKPIs();
+    });
+
+    $('#simDistCentro')?.addEventListener('change', e => {
+      Sim.distCentro = Math.max(100, parseInt(e.target.value, 10) || 350);
+      generateStops();
+      updateKPIs();
+    });
+
+    // Velocidades comerciales
+    $('#simSpeedPeri')?.addEventListener('change', e => {
+      Sim.speedPeri = Math.max(5, parseFloat(e.target.value) || 22);
+      updateKPIs();
+    });
+
+    $('#simSpeedCentro')?.addEventListener('change', e => {
+      Sim.speedCentro = Math.max(5, parseFloat(e.target.value) || 16);
+      updateKPIs();
+    });
+
+    // Toggles de visualización
+    $('#simCheckStops')?.addEventListener('change', e => {
+      Sim.showStops = e.target.checked;
+      if (Sim.showStops) {
+        if (!Sim.layerGroup.hasLayer(Sim.layerStops)) Sim.layerGroup.addLayer(Sim.layerStops);
+        generateStops();
+      } else {
+        Sim.layerStops.clearLayers();
+      }
+    });
+
+    $('#simCheckCentroArea')?.addEventListener('change', e => {
+      Sim.showCentroArea = e.target.checked;
+      if (Sim.showCentroArea) {
+        if (!map.hasLayer(Sim.layerCentroArea)) Sim.layerCentroArea.addTo(map);
+      } else {
+        if (map.hasLayer(Sim.layerCentroArea)) map.removeLayer(Sim.layerCentroArea);
+      }
+    });
+
+    // Toggle drawer directiva
+    $('#simBtnToggleDrawer')?.addEventListener('click', () => {
+      const drawer = $('#simDrawer');
+      const btn = $('#simBtnToggleDrawer');
+      const btnTxt = $('#simDrawerBtnTxt');
+      if (drawer) {
+        const isOpen = drawer.classList.toggle('open');
+        if (btn) btn.classList.toggle('on', isOpen);
+        if (btnTxt) btnTxt.textContent = isOpen ? 'Ocultar Panel' : 'Panel Directiva';
+      }
+    });
+
+    // Botón cerrar simulación
+    $('#simBtnClose')?.addEventListener('click', () => {
+      setSimulationMode(false);
+    });
+
+    // Selector de modo superior
+    $('#btnModeSim')?.addEventListener('click', () => {
+      setSimulationMode(true);
+      const el = document.getElementById('mapa');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    $('#btnModeMap')?.addEventListener('click', () => {
+      setSimulationMode(false);
+    });
+
+    $('#navSimLink')?.addEventListener('click', e => {
+      e.preventDefault();
+      setSimulationMode(true);
+      const el = document.getElementById('mapa');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    // Copiar Ficha de Simulación para Directiva
+    $('#simBtnCopyReport')?.addEventListener('click', () => {
+      const f = Sim.routeFeature;
+      if (!f) return;
+      const distTotalKm = (Sim.totalMeters / 1000).toFixed(2);
+      const distPeriKm = (Sim.periMeters / 1000).toFixed(2);
+      const distCentroKm = (Sim.centroMeters / 1000).toFixed(2);
+      const pctPeri = ((Sim.periMeters / Sim.totalMeters) * 100).toFixed(1);
+      const pctCentro = ((Sim.centroMeters / Sim.totalMeters) * 100).toFixed(1);
+      const numStopsPeri = Sim.stops.filter(s => !s.isCentro).length;
+      const numStopsCentro = Sim.stops.filter(s => s.isCentro).length;
+
+      const timeDrivePeriMin = (distPeriKm / Sim.speedPeri) * 60;
+      const timeDriveCentroMin = (distCentroKm / Sim.speedCentro) * 60;
+      const timeDwellMin = (Sim.stops.length * 0.65 * Sim.dwellTime) / 60;
+      const timeCycleMin = (timeDrivePeriMin + timeDriveCentroMin + timeDwellMin) * 1.06;
+      const headwayMin = timeCycleMin / Sim.fleetCount;
+      const avgWaitMin = headwayMin / 2;
+      const effectiveSpeedKmH = distTotalKm / (timeCycleMin / 60);
+
+      const reportText = `===============================================================
+PLAN PILOTO DE REORDENAMIENTO DEL TRANSPORTE PÚBLICO
+FICHA TÉCNICA Y DICTAMEN DE SIMULACIÓN OPERATIVA
+Secretaría de Movilidad Urbana · Municipalidad de San Miguel de Tucumán
+===============================================================
+• Recorrido Evaluado: Línea ${f.properties.Linea} · ${f.properties.Recorrido} (Sector ${f.properties.sector})
+• Longitud Total del Circuito: ${distTotalKm} km (Ida y Vuelta)
+  - Tramo en Barrios/Periferia: ${distPeriKm} km (${pctPeri}%)
+  - Tramo en Macrocentro (Congestión): ${distCentroKm} km (${pctCentro}%)
+
+PARÁMETROS OPERATIVOS INGRESADOS:
+• Flota Asignada en Servicio: ${Sim.fleetCount} unidades
+• Esquema de Paradas a Prueba:
+  - En Periferia / Barrios: cada ${Sim.distPeri} metros (${numStopsPeri} paradas)
+  - En Centro (Congestión): cada ${Sim.distCentro} metros (${numStopsCentro} paradas)
+  - Total de Paradas del Circuito: ${Sim.stops.length} paradas
+• Velocidades Comerciales Ingresadas:
+  - En Periferia / Barrios: ${Sim.speedPeri.toFixed(1)} km/h
+  - En Macrocentro: ${Sim.speedCentro.toFixed(1)} km/h
+  - Tiempo de Detención por Parada (Dwell time): ${Sim.dwellTime} segundos
+
+RESULTADOS DEL MODELO PREDICTIVO (MÉTRICAS PARA LA DIRECTIVA):
+• Frecuencia Promedio de Paso (Headway): ${headwayMin.toFixed(1)} minutos
+• Tiempo Medio de Espera del Usuario en Parada: ${avgWaitMin.toFixed(1)} minutos
+• Tiempo de Ciclo Completo (Vuelta Total): ${timeCycleMin.toFixed(0)} minutos (${(timeCycleMin / 60).toFixed(1)} h)
+  - Tiempo en tramo barrial: ${timeDrivePeriMin.toFixed(0)} min (${pctPeri}%)
+  - Tiempo en tramo céntrico: ${timeDriveCentroMin.toFixed(0)} min (${pctCentro}%)
+• Velocidad Comercial Global Resultante: ${effectiveSpeedKmH.toFixed(1)} km/h
+===============================================================`;
+
+      navigator.clipboard.writeText(reportText).then(() => {
+        const badge = $('#simReportCopied');
+        if (badge) {
+          badge.style.display = 'inline';
+          setTimeout(() => { badge.style.display = 'none'; }, 3500);
+        }
+      });
+    });
+  }
+
+  // Método expuesto globalmente para iniciar simulación de un recorrido puntual
+  window.startSimulationForRoute = function (routeKey) {
+    setSimulationMode(true);
+    selectSimRoute(routeKey, true);
+    const el = document.getElementById('mapa');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // CONTROL DE PANTALLA COMPLETA (PROYECCIÓN PARA REUNIONES Y DIRECTIVA)
+  const mapShell = document.getElementById('mapShell');
+  const btnToggleFs = document.getElementById('btnToggleFullscreen');
+  const btnFloatingFs = document.getElementById('btnFloatingFullscreen');
+  const txtFs = document.getElementById('txtBtnFullscreen');
+
+  function updateFullscreenUI(isFs) {
+    [btnToggleFs, btnFloatingFs].forEach(b => {
+      if (!b) return;
+      b.classList.toggle('on', isFs);
+      const exp = b.querySelector('.icon-expand');
+      const comp = b.querySelector('.icon-compress');
+      if (exp) exp.style.display = isFs ? 'none' : '';
+      if (comp) comp.style.display = isFs ? '' : 'none';
+    });
+    if (txtFs) txtFs.textContent = isFs ? 'Salir Pantalla Completa' : 'Pantalla Completa';
+    if (mapShell) mapShell.classList.toggle('is-fullscreen', isFs);
+    setTimeout(() => {
+      if (map) map.invalidateSize();
+    }, 180);
+  }
+
+  function toggleFullscreen() {
+    if (!mapShell) return;
+    const isCurrentlyFs = document.fullscreenElement === mapShell || mapShell.classList.contains('is-fullscreen');
+
+    if (!isCurrentlyFs) {
+      if (mapShell.requestFullscreen) {
+        mapShell.requestFullscreen().catch(() => {
+          updateFullscreenUI(true);
+        });
+      } else {
+        updateFullscreenUI(true);
+      }
+    } else {
+      if (document.exitFullscreen && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      updateFullscreenUI(false);
+    }
+  }
+
+  btnToggleFs?.addEventListener('click', toggleFullscreen);
+  btnFloatingFs?.addEventListener('click', toggleFullscreen);
+
+  document.addEventListener('fullscreenchange', () => {
+    const isFs = document.fullscreenElement === mapShell;
+    updateFullscreenUI(isFs);
+  });
+
+  initSimulationUI();
+
   window.addEventListener('load', () => setTimeout(() => map.invalidateSize(), 300));
 })();
