@@ -2505,28 +2505,32 @@ footer .small {
 .btn-toggle-sec-sub {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: #ffffff;
-  border: 1px solid var(--line);
-  color: var(--mut);
+  gap: 5px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
   font: 600 11px 'Poppins', sans-serif;
-  padding: 3px 8px;
+  padding: 3px 9px;
   border-radius: 999px;
   cursor: pointer;
   transition: all 0.2s ease;
+  user-select: none;
+  flex: none;
 }
 
 .btn-toggle-sec-sub:hover {
   color: var(--blue);
   border-color: var(--blue);
+  background: #eff6ff;
 }
 
 .btn-toggle-sec-sub .icon-chevron {
-  transition: transform 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: rotate(180deg);
 }
 
 .btn-toggle-sec-sub.collapsed .icon-chevron {
-  transform: rotate(-90deg);
+  transform: rotate(0deg);
 }
 
 .sectors-subpanel {
@@ -2536,6 +2540,18 @@ footer .small {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid #e2e8f0;
+  animation: fadeInSec 0.2s ease;
+}
+
+@keyframes fadeInSec {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sectors-subpanel.collapsed {

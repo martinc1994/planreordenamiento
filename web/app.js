@@ -70,13 +70,13 @@
 
   // ---------- SECTORES: GESTIÓN DIFERENCIADA (SECTORES 1 A 7) ----------
   const SEC_PALETTE = {
-    1: { fill: '#0284c7', border: '#0369a1' }, // Sector 1 · Línea A
-    2: { fill: '#16a34a', border: '#15803d' }, // Sector 2 · Línea B
-    3: { fill: '#ca8a04', border: '#a16207' }, // Sector 3 · Línea C
-    4: { fill: '#9333ea', border: '#7e22ce' }, // Sector 4 · Línea D
-    5: { fill: '#0066ff', border: '#1f2937' }, // Sector 5 · Línea E (Piloto)
-    6: { fill: '#e4572e', border: '#1f2937' }, // Sector 6 · Línea F (Piloto)
-    7: { fill: '#0d9488', border: '#0f766e' }  // Sector 7 · Línea G
+    1: { fill: '#0284c7', border: '#94a3b8' }, // Sector 1 · Línea A
+    2: { fill: '#16a34a', border: '#94a3b8' }, // Sector 2 · Línea B
+    3: { fill: '#ca8a04', border: '#94a3b8' }, // Sector 3 · Línea C
+    4: { fill: '#9333ea', border: '#94a3b8' }, // Sector 4 · Línea D
+    5: { fill: '#0066ff', border: '#64748b' }, // Sector 5 · Línea E (Piloto)
+    6: { fill: '#e4572e', border: '#64748b' }, // Sector 6 · Línea F (Piloto)
+    7: { fill: '#0d9488', border: '#94a3b8' }  // Sector 7 · Línea G
   };
 
   const lSectGroup = L.layerGroup().addTo(map);
@@ -85,16 +85,16 @@
 
   function createSectorLayer(f, n) {
     const isPilot = n === 5 || n === 6;
-    const pal = SEC_PALETTE[n] || { fill: '#94a3b8', border: '#64748b' };
+    const pal = SEC_PALETTE[n] || { fill: '#94a3b8', border: '#94a3b8' };
     const layer = L.geoJSON(f, {
       pane: 'sectores',
       style: () => ({
-        color: isPilot ? '#1f2937' : pal.border,
-        weight: isPilot ? 2.6 : 1.6,
-        fillColor: isPilot ? (n === 5 ? '#cbd5e1' : '#fed7aa') : pal.fill,
-        fillOpacity: isPilot ? 0.38 : 0.16,
-        opacity: isPilot ? 0.95 : 0.75,
-        dashArray: isPilot ? null : '5 5'
+        color: isPilot ? '#64748b' : '#94a3b8',
+        weight: isPilot ? 1.6 : 1.3,
+        fillColor: isPilot ? (n === 5 ? '#3b82f6' : '#ea580c') : pal.fill,
+        fillOpacity: isPilot ? 0.08 : 0.06,
+        opacity: 0.75,
+        dashArray: '5 5'
       }),
       onEachFeature: (feat, l) => {
         l.on('click', () => {
@@ -106,7 +106,7 @@
             </div>`, l);
         });
         l.on('mouseover', () => {
-          l.setStyle({ fillOpacity: isPilot ? 0.55 : 0.35, weight: isPilot ? 3.5 : 2.5 });
+          l.setStyle({ fillOpacity: isPilot ? 0.20 : 0.16, weight: 2.2, opacity: 0.95 });
         });
         l.on('mouseout', () => {
           layer.resetStyle(l);
@@ -844,15 +844,21 @@
   });
 
   // Toggle colapso/despliegue del subpanel de sectores
-  $('#btnToggleSecSub')?.addEventListener('click', () => {
+  const toggleSectorsSubpanel = (forceState = null) => {
     const panel = $('#sectorsSubpanel');
     const btn = $('#btnToggleSecSub');
-    if (panel) {
-      const isCollapsed = panel.classList.toggle('collapsed');
-      if (btn) btn.classList.toggle('collapsed', isCollapsed);
-      const txt = $('#txtToggleSecSub');
-      if (txt) txt.textContent = isCollapsed ? 'Ver' : 'Detalle';
-    }
+    const txt = $('#txtToggleSecSub');
+    if (!panel) return;
+    const isCurrentlyCollapsed = panel.classList.contains('collapsed');
+    const nextCollapsed = forceState !== null ? forceState : !isCurrentlyCollapsed;
+    panel.classList.toggle('collapsed', nextCollapsed);
+    if (btn) btn.classList.toggle('collapsed', nextCollapsed);
+    if (txt) txt.textContent = nextCollapsed ? 'Desplegar' : 'Contraer';
+  };
+
+  $('#btnToggleSecSub')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSectorsSubpanel();
   });
 
   // Botones de acción rápida de sectores

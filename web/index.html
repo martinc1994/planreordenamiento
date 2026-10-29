@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 
 <body>
@@ -112,12 +112,12 @@
               <div class="sectors-master-header">
                 <label class="layer layer-sectors-master"><input type="checkbox" id="L-sectores"><i class="sw"
                     style="background:linear-gradient(90deg,#0284c7,#9333ea,#0066ff,#e4572e)"></i><span>Sectores funcionales<small id="sectorsSubtxt">7 polígonos delimitados (individuales)</small></span></label>
-                <button type="button" class="btn-toggle-sec-sub" id="btnToggleSecSub" title="Desplegar u ocultar lista de sectores">
-                  <span id="txtToggleSecSub">Detalle</span>
+                <button type="button" class="btn-toggle-sec-sub collapsed" id="btnToggleSecSub" title="Desplegar u ocultar selector de sectores">
+                  <span id="txtToggleSecSub">Desplegar</span>
                   <svg class="icon-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
               </div>
-              <div class="sectors-subpanel" id="sectorsSubpanel">
+              <div class="sectors-subpanel collapsed" id="sectorsSubpanel">
                 <div class="sectors-quick-bar">
                   <button type="button" class="btn-sec-action" id="btnSecPiloto">Piloto (5 y 6)</button>
                   <button type="button" class="btn-sec-action" id="btnSecAll">Todos (7)</button>
