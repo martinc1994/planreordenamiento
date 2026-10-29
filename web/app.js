@@ -68,18 +68,205 @@
   };
   const short = s => s.replace('Linea ', 'L');
 
-  // sectores
-  const secColor = n => (n === 5 || n === 6) ? '#1f2937' : '#94a3b8';
-  const lSect = L.geoJSON(D.sectores, {
-    pane: 'sectores',
-    style: f => { const n = secNum(f), p = n === 5 || n === 6; return { color: secColor(n), weight: p ? 2.5 : 1.2, fillColor: p ? '#cbd5e1' : '#e2e8f0', fillOpacity: p ? .38 : .12, opacity: p ? .9 : .7, dashArray: p ? null : '6 6' }; },
-    onEachFeature: (f, l) => {
-      const n = secNum(f);
-      l.on('click', () => setInfo(`<h5>${f.properties.Name}</h5><div class="m">${int(f.properties.TRX_MES)} transacciones/mes · ${int(f.properties.TARJ_MES)} tarjetas<br>${fmt(featArea(f), 1)} km²</div>`, lSect));
-      l.bindTooltip('Sector ' + n, { permanent: true, direction: 'center', className: 'sector-label' });
+  // ---------- SECTORES: GESTIÓN DIFERENCIADA (SECTORES 1 A 7) ----------
+  const SEC_PALETTE = {
+    1: { fill: '#0284c7', border: '#0369a1' }, // Sector 1 · Línea A
+    2: { fill: '#16a34a', border: '#15803d' }, // Sector 2 · Línea B
+    3: { fill: '#ca8a04', border: '#a16207' }, // Sector 3 · Línea C
+    4: { fill: '#9333ea', border: '#7e22ce' }, // Sector 4 · Línea D
+    5: { fill: '#0066ff', border: '#1f2937' }, // Sector 5 · Línea E (Piloto)
+    6: { fill: '#e4572e', border: '#1f2937' }, // Sector 6 · Línea F (Piloto)
+    7: { fill: '#0d9488', border: '#0f766e' }  // Sector 7 · Línea G
+  };
+
+  const lSectGroup = L.layerGroup().addTo(map);
+  const activeSectors = new Map(); // n -> { layer, feat, n }
+  const sectorLayersMap = new Map();
+
+  function createSectorLayer(f, n) {
+    const isPilot = n === 5 || n === 6;
+    const pal = SEC_PALETTE[n] || { fill: '#94a3b8', border: '#64748b' };
+    const layer = L.geoJSON(f, {
+      pane: 'sectores',
+      style: () => ({
+        color: isPilot ? '#1f2937' : pal.border,
+        weight: isPilot ? 2.6 : 1.6,
+        fillColor: isPilot ? (n === 5 ? '#cbd5e1' : '#fed7aa') : pal.fill,
+        fillOpacity: isPilot ? 0.38 : 0.16,
+        opacity: isPilot ? 0.95 : 0.75,
+        dashArray: isPilot ? null : '5 5'
+      }),
+      onEachFeature: (feat, l) => {
+        l.on('click', () => {
+          setInfo(`<h5>${feat.properties.Name}</h5>
+            <div class="m">
+              <b>${int(feat.properties.TRX_MES)}</b> transacciones/mes · <b>${int(feat.properties.TARJ_MES)}</b> tarjetas<br>
+              Superficie: <b>${fmt(featArea(feat), 1)} km²</b> · Densidad: <b>${int(feat.properties.TRX_MES / featArea(feat))} trx/km²</b><br>
+              <span class="tag ${n === 5 ? 'e' : n === 6 ? 'f' : 'l'}">Línea ${LETTER[n - 1]}${isPilot ? ' · Piloto' : ''}</span>
+            </div>`, l);
+        });
+        l.on('mouseover', () => {
+          l.setStyle({ fillOpacity: isPilot ? 0.55 : 0.35, weight: isPilot ? 3.5 : 2.5 });
+        });
+        l.on('mouseout', () => {
+          layer.resetStyle(l);
+        });
+        l.bindTooltip(`Sector ${n} · Línea ${LETTER[n - 1]}`, {
+          permanent: true,
+          direction: 'center',
+          className: 'sector-label'
+        });
+      }
+    });
+    return layer;
+  }
+
+  function toggleSector(n, shouldZoom = false) {
+    const feat = D.sectores.features.find(x => secNum(x) === n);
+    if (!feat) return;
+
+    if (activeSectors.has(n)) {
+      // DESACTIVAR
+      const item = activeSectors.get(n);
+      lSectGroup.removeLayer(item.layer);
+      activeSectors.delete(n);
+      if (activeInfoLayer === item.layer) resetInfo();
+    } else {
+      // ACTIVAR
+      let layer = sectorLayersMap.get(n);
+      if (!layer) {
+        layer = createSectorLayer(feat, n);
+        sectorLayersMap.set(n, layer);
+      }
+      lSectGroup.addLayer(layer);
+      activeSectors.set(n, { layer, feat, n });
+
+      if (shouldZoom) {
+        map.fitBounds(layer.getBounds(), { padding: [35, 35] });
+      }
+
+      setInfo(`<h5>${feat.properties.Name}</h5>
+        <div class="m">
+          <b>${int(feat.properties.TRX_MES)}</b> transacciones/mes · <b>${int(feat.properties.TARJ_MES)}</b> tarjetas<br>
+          Superficie: <b>${fmt(featArea(feat), 1)} km²</b> · Densidad: <b>${int(feat.properties.TRX_MES / featArea(feat))} trx/km²</b><br>
+          <span class="tag ${n === 5 ? 'e' : n === 6 ? 'f' : 'l'}">Línea ${LETTER[n - 1]}${n === 5 || n === 6 ? ' · Piloto' : ''}</span>
+        </div>`, layer);
     }
-  });
-  lSect.eachLayer(l => { const t = l.getTooltip(); });
+
+    syncSectorsUI();
+    checkAnyActiveLayers();
+  }
+
+  function setAllSectors(enabled) {
+    secs.forEach(f => {
+      const n = secNum(f);
+      const isActive = activeSectors.has(n);
+      if (enabled && !isActive) {
+        toggleSector(n, false);
+      } else if (!enabled && isActive) {
+        toggleSector(n, false);
+      }
+    });
+  }
+
+  function setPilotSectors() {
+    secs.forEach(f => {
+      const n = secNum(f);
+      const shouldBeActive = n === 5 || n === 6;
+      const isActive = activeSectors.has(n);
+      if (shouldBeActive && !isActive) {
+        toggleSector(n, false);
+      } else if (!shouldBeActive && isActive) {
+        toggleSector(n, false);
+      }
+    });
+    map.fitBounds(b56(), { padding: [35, 35] });
+  }
+
+  function syncSectorsUI() {
+    const cbMaster = $('#L-sectores');
+    const count = activeSectors.size;
+
+    if (cbMaster) {
+      if (count === secs.length) {
+        cbMaster.checked = true;
+        cbMaster.indeterminate = false;
+      } else if (count > 0) {
+        cbMaster.checked = false;
+        cbMaster.indeterminate = true;
+      } else {
+        cbMaster.checked = false;
+        cbMaster.indeterminate = false;
+      }
+    }
+
+    const subtxt = $('#sectorsSubtxt');
+    if (subtxt) {
+      if (count === 0) {
+        subtxt.textContent = '7 polígonos delimitados (individuales)';
+      } else if (count === secs.length) {
+        subtxt.textContent = 'Todos los sectores activos (7 de 7)';
+      } else {
+        const activeNames = [...activeSectors.keys()].sort((a,b)=>a-b).map(n => `S${n}`).join(', ');
+        subtxt.textContent = `${count} de 7 activos (${activeNames})`;
+      }
+    }
+
+    secs.forEach(f => {
+      const n = secNum(f);
+      const isActive = activeSectors.has(n);
+      const row = $(`#sectorsList .sec-item-row[data-sec="${n}"]`);
+      const cb = $(`#sec-cb-${n}`);
+      if (row) row.classList.toggle('active', isActive);
+      if (cb) cb.checked = isActive;
+    });
+  }
+
+  function renderSectorsList() {
+    const container = $('#sectorsList');
+    if (!container) return;
+    const html = secs.map(f => {
+      const n = secNum(f);
+      const a = featArea(f);
+      const pal = SEC_PALETTE[n] || { fill: '#94a3b8' };
+      const isPilot = n === 5 || n === 6;
+      const tag = isPilot ? `<span class="sec-tag-piloto ${n === 5 ? 'e' : 'f'}">Piloto</span>` : '';
+      return `
+        <div class="sec-item-row" data-sec="${n}">
+          <input type="checkbox" class="sec-item-cb" id="sec-cb-${n}">
+          <i class="sec-item-sw" style="background:${pal.fill}"></i>
+          <div class="sec-item-info">
+            <span class="sec-item-title">Sector ${n}</span>
+            <span class="sec-item-line">· Línea ${LETTER[n - 1]}</span>
+            ${tag}
+          </div>
+          <span class="sec-item-km">${fmt(a, 1)} km²</span>
+          <button type="button" class="sec-item-zoom" title="Enfocar Sector ${n}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = html;
+
+    container.addEventListener('click', e => {
+      const zoomBtn = e.target.closest('.sec-item-zoom');
+      const row = e.target.closest('.sec-item-row');
+      if (!row) return;
+      const n = parseInt(row.dataset.sec, 10);
+      if (zoomBtn) {
+        e.stopPropagation();
+        if (!activeSectors.has(n)) toggleSector(n, false);
+        const feat = D.sectores.features.find(x => secNum(x) === n);
+        if (feat) map.fitBounds(L.geoJSON(feat).getBounds(), { padding: [35, 35] });
+        return;
+      }
+      toggleSector(n, false);
+    });
+  }
+
+  renderSectorsList();
 
   // 1 · trazos actuales afectados (ramales que ingresan a sectores 5 y/o 6)
   const lActAfectados = L.geoJSON(D.actuales_afectados, {
@@ -143,6 +330,119 @@
   const getPropKey = f => `${f.properties.Linea}-${f.properties.fid}`;
   const getPropColor = f => (f.properties.sector === 5 ? E_COL : F_COL)[(f.properties.fid - 1) % (f.properties.sector === 5 ? E_COL.length : F_COL.length)];
 
+  // ---------- PARADAS OPTIMIZADAS DE LA PROPUESTA (SECTOR 5) ----------
+  function isRouteWithRealStops(routeKey) {
+    return routeKey === 'E-1' || routeKey === 'E-2';
+  }
+
+  function getRealStopsForRoute(routeKey) {
+    if (!D.paradas_propuesta || !D.paradas_propuesta.features) return [];
+    const ramalFilter = routeKey === 'E-1' ? 'Manantial Sur' : routeKey === 'E-2' ? 'San Alberto' : null;
+    if (!ramalFilter) return [];
+    return D.paradas_propuesta.features.filter(f => {
+      const r = f.properties && f.properties.Ramal;
+      return r && r.toLowerCase().includes(ramalFilter.toLowerCase());
+    });
+  }
+
+  const lMapStopsGroup = L.layerGroup().addTo(map);
+  let showMapStops = true;
+
+  const ParadasControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() {
+      const b = L.DomUtil.create('button', 'paradas-toggle on');
+      b.type = 'button';
+      b.id = 'paradasToggle';
+      b.innerHTML = '<span class="pdot"></span><span class="ptxt">🚏 Paradas propuesta</span>';
+      b.title = 'Mostrar u ocultar los puntos de paradas optimizadas de los recorridos activos';
+      L.DomEvent.disableClickPropagation(b);
+      b.addEventListener('click', () => {
+        showMapStops = !showMapStops;
+        b.classList.toggle('on', showMapStops);
+        updateMapStops();
+      });
+      return b;
+    }
+  });
+  const paradasBtn = new ParadasControl().addTo(map).getContainer();
+  paradasBtn.style.display = 'none';
+
+  function updateMapStops() {
+    lMapStopsGroup.clearLayers();
+    const hasE1 = activeProposedLayers.has('E-1');
+    const hasE2 = activeProposedLayers.has('E-2');
+    const isAvail = hasE1 || hasE2;
+
+    if (!isAvail) {
+      paradasBtn.style.display = 'none';
+      return;
+    }
+
+    paradasBtn.style.display = '';
+
+    const stopsToShow = [];
+    const seen = new Set();
+
+    if (hasE1) {
+      getRealStopsForRoute('E-1').forEach(f => {
+        const k = `${f.geometry.coordinates[0]}_${f.geometry.coordinates[1]}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          stopsToShow.push({ f, color: E_COL[0], ramal: 'Manantial Sur' });
+        }
+      });
+    }
+
+    if (hasE2) {
+      getRealStopsForRoute('E-2').forEach(f => {
+        const k = `${f.geometry.coordinates[0]}_${f.geometry.coordinates[1]}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          stopsToShow.push({ f, color: E_COL[1], ramal: 'San Alberto' });
+        }
+      });
+    }
+
+    const txtSpan = paradasBtn.querySelector('.ptxt');
+    if (txtSpan) {
+      txtSpan.textContent = `🚏 Paradas (${stopsToShow.length}): ` + (showMapStops ? 'activadas' : 'desactivadas');
+    }
+
+    if (!showMapStops) return;
+
+    stopsToShow.forEach(item => {
+      const p = item.f.properties;
+      const coords = item.f.geometry.coordinates;
+      const lat = coords[1], lon = coords[0];
+      const marker = L.circleMarker([lat, lon], {
+        pane: 'highlight',
+        radius: 5,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: item.color,
+        fillOpacity: 0.95
+      });
+
+      marker.bindTooltip(`<b>🚏 ${p.Direccion}</b><br><small style="color:#cbd5e1">Línea ${p.Linea || 'E'} · Ramal: ${p.Ramal}</small>`, {
+        direction: 'top',
+        className: 'leaflet-tooltip'
+      });
+
+      marker.on('click', () => {
+        setInfo(`<h5>🚏 Parada: ${p.Direccion}</h5>
+          <div class="m">Propuesta Línea ${p.Linea || 'E'} · Ramal: <b>${p.Ramal}</b><br>
+          Punto de parada optimizado (Sector 5 · Línea E)<br>
+          <small style="color:#64748b">Coordenadas: ${lat.toFixed(5)}, ${lon.toFixed(5)}</small></div>`, marker);
+      });
+
+      marker.on('mouseover', () => marker.setRadius(7.5));
+      marker.on('mouseout', () => marker.setRadius(5));
+
+      lMapStopsGroup.addLayer(marker);
+    });
+  }
+
   function syncProposedMasterCheckboxes() {
     const eFeatures = D.propuesta.features.filter(f => f.properties.sector === 5);
     const fFeatures = D.propuesta.features.filter(f => f.properties.sector === 6);
@@ -182,6 +482,7 @@
     }
 
     checkAnyActiveLayers();
+    updateMapStops();
   }
 
   function toggleProposed(key, shouldZoom = true) {
@@ -244,9 +545,11 @@
       const key = getPropKey(f);
       const c = getPropColor(f);
       const isActive = activeProposedLayers.has(key);
+      const hasStops = isRouteWithRealStops(key);
+      const badgeStops = hasStops ? `<span class="badge-stops-pill" title="Cuenta con puntos de paradas optimizadas relevadas en GeoJSON">🚏 Paradas</span>` : '';
       rows.push(`<div class="lg-row ${isActive ? 'active' : ''}" data-key="${key}" data-s="${f.properties.sector}" data-fid="${f.properties.fid}">
         <i style="background:${c}"></i>
-        <span style="flex:1;">Línea ${f.properties.Linea} · ${f.properties.Recorrido}</span>
+        <span style="flex:1;">Línea ${f.properties.Linea} · ${f.properties.Recorrido} ${badgeStops}</span>
         <small style="color:#667085;font-variant-numeric:tabular-nums;">${fmt(f.properties.Longitud, 1)} km</small>
       </div>`);
     });
@@ -506,7 +809,8 @@
   const checkAnyActiveLayers = () => {
     const anyChecked = [...document.querySelectorAll('input[id^="L-"]')].some(c => c.checked || c.indeterminate) ||
       (activeActualLayers && activeActualLayers.size > 0) ||
-      (activeProposedLayers && activeProposedLayers.size > 0);
+      (activeProposedLayers && activeProposedLayers.size > 0) ||
+      (activeSectors && activeSectors.size > 0);
     if (!anyChecked) {
       resetInfo();
     }
@@ -530,8 +834,31 @@
   };
   bind('#L-afectados', lActAfectados);
   bind('#L-actuales', lAct);
-  bind('#L-sectores', lSect);
   bind('#L-cob', lCob);
+
+  // Toggle master para Sectores (1 a 7)
+  $('#L-sectores')?.addEventListener('change', e => {
+    const isChecked = e.target.checked;
+    e.target.indeterminate = false;
+    setAllSectors(isChecked);
+  });
+
+  // Toggle colapso/despliegue del subpanel de sectores
+  $('#btnToggleSecSub')?.addEventListener('click', () => {
+    const panel = $('#sectorsSubpanel');
+    const btn = $('#btnToggleSecSub');
+    if (panel) {
+      const isCollapsed = panel.classList.toggle('collapsed');
+      if (btn) btn.classList.toggle('collapsed', isCollapsed);
+      const txt = $('#txtToggleSecSub');
+      if (txt) txt.textContent = isCollapsed ? 'Ver' : 'Detalle';
+    }
+  });
+
+  // Botones de acción rápida de sectores
+  $('#btnSecAll')?.addEventListener('click', () => setAllSectors(true));
+  $('#btnSecNone')?.addEventListener('click', () => setAllSectors(false));
+  $('#btnSecPiloto')?.addEventListener('click', () => setPilotSectors());
 
   // Toggle master para Línea E (Sector 5)
   $('#L-E')?.addEventListener('change', e => {
@@ -567,13 +894,25 @@
 
   // foco
   const b56 = () => L.geoJSON(D.propuesta).getBounds();
-  const bSec = n => { let b; lSect.eachLayer(l => { if (secNum(l.feature) === n) b = l.getBounds(); }); return b; };
+  const bSec = n => {
+    const f = D.sectores.features.find(x => secNum(x) === n);
+    return f ? L.geoJSON(f).getBounds() : b56();
+  };
   function focus(f) {
     document.querySelectorAll('#focus button').forEach(b => b.classList.toggle('on', b.dataset.f === f));
-    const b = f === 'all' ? b56() : f === 'city' ? lSect.getBounds() : bSec(+f);
+    const b = f === 'all' ? b56() : f === 'city' ? L.geoJSON(D.sectores).getBounds() : bSec(+f);
     map.flyToBounds(b, { padding: [30, 30], duration: .9 });
   }
-  $('#focus').addEventListener('click', e => { const b = e.target.closest('button'); if (b) focus(b.dataset.f); });
+  $('#focus')?.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const f = b.dataset.f;
+    focus(f);
+    if (f === '5' || f === '6') {
+      const n = parseInt(f, 10);
+      if (!activeSectors.has(n)) toggleSector(n, false);
+    }
+  });
   map.fitBounds(b56(), { padding: [30, 30] });
   setInfo('<b>Tip:</b> tocá una línea o un sector para ver sus datos.');
 
@@ -702,6 +1041,7 @@
     lastTs: 0,
     showStops: true,
     showCentroArea: true,
+    stopsMode: 'teoricas', // 'teoricas' | 'reales'
 
     // Geometría y paradas
     totalMeters: 0,
@@ -831,43 +1171,115 @@
     Sim.layerGroup.addLayer(Sim.layerRoute);
   }
 
-  function generateStops() {
-    Sim.layerStops.clearLayers();
-    const stops = [];
-    const total = Sim.totalMeters;
-    let curDist = 0;
-    let stopIdx = 1;
+  function projectRealStopsToRoute(realFeatures) {
+    const cum = Sim.cumDists;
+    const pts = Sim.coords;
+    if (!cum || !cum.length || !pts || pts.length < 2) return [];
 
-    // Cabecera inicial (km 0.0)
-    const origin = getCoordAtDist(0);
-    const inCentroOrig = isPointInCentro(origin.coord[0], origin.coord[1]);
-    stops.push({
-      id: 1,
-      index: 0,
-      coord: origin.coord,
-      distMeters: 0,
-      isCentro: inCentroOrig,
-      name: `Cabecera Barrio (km 0.0) · ${inCentroOrig ? 'Centro' : 'Periferia'}`
+    const lat0 = pts[0][1] * Math.PI / 180;
+    const kx = 111320 * Math.cos(lat0);
+    const ky = 110570;
+
+    const segments = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const ax = pts[i][0] * kx, ay = pts[i][1] * ky;
+      const bx = pts[i + 1][0] * kx, by = pts[i + 1][1] * ky;
+      const vx = bx - ax, vy = by - ay;
+      const lenSq = vx * vx + vy * vy;
+      segments.push({ i, ax, ay, bx, by, vx, vy, lenSq, cum0: cum[i], len: Math.sqrt(lenSq) });
+    }
+
+    const mapped = [];
+    realFeatures.forEach((f, idx) => {
+      const coords = f.geometry.coordinates;
+      const px = coords[0] * kx, py = coords[1] * ky;
+
+      let minDistSq = Infinity;
+      let bestAlong = 0;
+
+      for (let s = 0; s < segments.length; s++) {
+        const seg = segments[s];
+        if (seg.lenSq === 0) continue;
+        const wx = px - seg.ax, wy = py - seg.ay;
+        let t = (wx * seg.vx + wy * seg.vy) / seg.lenSq;
+        if (t < 0) t = 0; else if (t > 1) t = 1;
+        const projX = seg.ax + t * seg.vx;
+        const projY = seg.ay + t * seg.vy;
+        const dx = px - projX, dy = py - projY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < minDistSq) {
+          minDistSq = distSq;
+          bestAlong = seg.cum0 + t * seg.len;
+        }
+      }
+
+      const isCentro = isPointInCentro(coords[0], coords[1]);
+      const dir = f.properties.Direccion || `Parada #${idx + 1}`;
+
+      mapped.push({
+        id: idx + 1,
+        coord: coords,
+        distMeters: bestAlong,
+        isCentro,
+        direccion: dir,
+        ramal: f.properties.Ramal,
+        name: `${dir} (${isCentro ? 'Centro · Congestión' : 'Periferia / Barrio'}) · km ${(bestAlong / 1000).toFixed(2)}`
+      });
     });
 
-    while (curDist < total - 60) {
-      const pt = getCoordAtDist(curDist);
-      const inCentro = isPointInCentro(pt.coord[0], pt.coord[1]);
-      const stepDist = inCentro ? Sim.distCentro : Sim.distPeri;
-      curDist += stepDist;
-      if (curDist >= total - 60) break;
+    mapped.sort((a, b) => a.distMeters - b.distMeters);
+    mapped.forEach((s, i) => { s.index = i; s.id = i + 1; });
+    return mapped;
+  }
 
-      const stopPt = getCoordAtDist(curDist);
-      const stopInCentro = isPointInCentro(stopPt.coord[0], stopPt.coord[1]);
+  function generateStops() {
+    Sim.layerStops.clearLayers();
+    let stops = [];
+
+    const isRealAvail = isRouteWithRealStops(Sim.routeKey);
+    const useReal = Sim.stopsMode === 'reales' && isRealAvail;
+
+    if (useReal) {
+      const realFeats = getRealStopsForRoute(Sim.routeKey);
+      stops = projectRealStopsToRoute(realFeats);
+    } else {
+      const total = Sim.totalMeters;
+      let curDist = 0;
+      let stopIdx = 1;
+
+      // Cabecera inicial (km 0.0)
+      const origin = getCoordAtDist(0);
+      const inCentroOrig = isPointInCentro(origin.coord[0], origin.coord[1]);
       stops.push({
-        id: stopIdx + 1,
-        index: stopIdx,
-        coord: stopPt.coord,
-        distMeters: curDist,
-        isCentro: stopInCentro,
-        name: `Parada P-${stopIdx + 1} (${stopInCentro ? 'Centro · Congestión' : 'Periferia / Barrio'}) · km ${(curDist / 1000).toFixed(2)}`
+        id: 1,
+        index: 0,
+        coord: origin.coord,
+        distMeters: 0,
+        isCentro: inCentroOrig,
+        direccion: 'Cabecera Barrio',
+        name: `Cabecera Barrio (km 0.0) · ${inCentroOrig ? 'Centro' : 'Periferia'}`
       });
-      stopIdx++;
+
+      while (curDist < total - 60) {
+        const pt = getCoordAtDist(curDist);
+        const inCentro = isPointInCentro(pt.coord[0], pt.coord[1]);
+        const stepDist = inCentro ? Sim.distCentro : Sim.distPeri;
+        curDist += stepDist;
+        if (curDist >= total - 60) break;
+
+        const stopPt = getCoordAtDist(curDist);
+        const stopInCentro = isPointInCentro(stopPt.coord[0], stopPt.coord[1]);
+        stops.push({
+          id: stopIdx + 1,
+          index: stopIdx,
+          coord: stopPt.coord,
+          distMeters: curDist,
+          isCentro: stopInCentro,
+          direccion: `Parada P-${stopIdx + 1}`,
+          name: `Parada P-${stopIdx + 1} (${stopInCentro ? 'Centro · Congestión' : 'Periferia / Barrio'}) · km ${(curDist / 1000).toFixed(2)}`
+        });
+        stopIdx++;
+      }
     }
 
     Sim.stops = stops;
@@ -876,12 +1288,17 @@
       stops.forEach(s => {
         const marker = L.circleMarker([s.coord[1], s.coord[0]], {
           pane: 'highlight',
-          radius: s.index === 0 ? 6.5 : 4.5,
+          radius: s.index === 0 ? 6.5 : (useReal ? 5 : 4.5),
           color: s.isCentro ? '#b45309' : '#0369a1',
           weight: 1.8,
           fillColor: s.isCentro ? '#f59e0b' : '#38bdf8',
-          fillOpacity: 0.9
-        }).bindTooltip(`<b>${s.name}</b><br><small>Esquema a prueba: ${s.isCentro ? Sim.distCentro + 'm (Centro)' : Sim.distPeri + 'm (Barrio)'}</small>`, { direction: 'top' });
+          fillOpacity: 0.95
+        }).bindTooltip(
+          useReal ?
+            `<b>🚏 ${s.direccion}</b><br><small>Parada real optimizada (GeoJSON)<br>km ${(s.distMeters / 1000).toFixed(2)} · ${s.isCentro ? 'Centro' : 'Periferia / Barrio'}</small>` :
+            `<b>${s.name}</b><br><small>Esquema a prueba: ${s.isCentro ? Sim.distCentro + 'm (Centro)' : Sim.distPeri + 'm (Barrio)'}</small>`,
+          { direction: 'top' }
+        );
         Sim.layerStops.addLayer(marker);
       });
     }
@@ -1060,7 +1477,12 @@
     $('#simBarCentro').style.width = pctCentro + '%';
     $('#simPeriStats').textContent = `${fmt(timeDrivePeriMin, 0)} min (${pctPeri}%) · ${numStopsPeri} paradas`;
     $('#simCentroStats').textContent = `${fmt(timeDriveCentroMin, 0)} min (${pctCentro}%) · ${numStopsCentro} paradas`;
-    $('#simTotalStopsBadge').textContent = `${totalStops} paradas en ${(distTotalKm).toFixed(1)} km`;
+    const isRealActive = Sim.stopsMode === 'reales' && isRouteWithRealStops(Sim.routeKey);
+    if (isRealActive) {
+      $('#simTotalStopsBadge').textContent = `${totalStops} paradas reales (${numStopsPeri} barrio / ${numStopsCentro} centro)`;
+    } else {
+      $('#simTotalStopsBadge').textContent = `${totalStops} paradas en ${(distTotalKm).toFixed(1)} km`;
+    }
 
     // Criterio de despacho
     const fleetPeri = Math.max(1, Math.round(Sim.fleetCount * 0.65));
@@ -1203,6 +1625,7 @@
           bus.state = 'stopped';
           bus.dwellTimer = Sim.dwellTime;
           bus.s = crossedStop.distMeters;
+          bus.currentStopName = crossedStop.direccion || crossedStop.name;
         } else {
           bus.s = nextS;
         }
@@ -1222,7 +1645,8 @@
         }
         if (tag) {
           if (bus.state === 'stopped') {
-            tag.textContent = `🚏 En parada (${Math.ceil(bus.dwellTimer)}s)`;
+            const stopLabel = bus.currentStopName ? `🚏 ${bus.currentStopName}` : '🚏 En parada';
+            tag.textContent = `${stopLabel} (${Math.ceil(bus.dwellTimer)}s)`;
             tag.style.background = '#dc2626';
           } else {
             const dirLabel = bus.leg === 'ida' ? 'Ida ➔ Centro' : 'Vuelta ➔ Barrio';
@@ -1292,6 +1716,9 @@
       $('#simFleetVal').textContent = `${optimalFleet} unidades`;
     }
 
+    // Actualizar estado del switch de paradas reales según recorrido
+    updateStopsSourceUI();
+
     // Configurar geometría y mapa
     setupRouteGeometry(feat);
     generateStops();
@@ -1306,6 +1733,76 @@
     if (selectEl && selectEl.value !== routeKey) {
       selectEl.value = routeKey;
     }
+  }
+
+  function updateStopsSourceUI() {
+    const isRealAvail = isRouteWithRealStops(Sim.routeKey);
+    const btnReales = $('#btnStopsReales');
+    const btnTeo = $('#btnStopsTeo');
+    const badge = $('#simBadgeSource');
+    const note = $('#simStopsNote');
+    const theoBox = $('#simTheoreticalInputsBox');
+    const realBox = $('#simRealStopsBox');
+
+    if (!isRealAvail) {
+      Sim.stopsMode = 'teoricas';
+      if (btnReales) {
+        btnReales.disabled = true;
+        btnReales.title = 'Solo disponible para Manantial Sur y San Alberto (Sector 5 - Línea E)';
+      }
+      if (note) {
+        note.innerHTML = '<span style="color:#94a3b8">ℹ️ Paradas reales relevadas disponibles solo para Manantial Sur y San Alberto (Sector 5).</span>';
+      }
+    } else {
+      if (btnReales) {
+        btnReales.disabled = false;
+        btnReales.title = 'Usar puntos de paradas optimizados reales del GeoJSON';
+      }
+      const count = getRealStopsForRoute(Sim.routeKey).length;
+      if (note) {
+        if (Sim.stopsMode === 'reales') {
+          note.innerHTML = `<span style="color:#15803d;font-weight:600;">✓ Utilizando ${count} paradas reales optimizadas del GeoJSON.</span>`;
+        } else {
+          note.innerHTML = `Esquema paramétrico según distancia en metros. <a href="#" id="lnkSwitchReal" style="color:var(--blue);font-weight:600;text-decoration:underline;">Cambiar a ${count} paradas reales</a>`;
+        }
+      }
+      const lnk = $('#lnkSwitchReal');
+      if (lnk) {
+        lnk.onclick = e => {
+          e.preventDefault();
+          setStopsMode('reales');
+        };
+      }
+    }
+
+    const isReal = Sim.stopsMode === 'reales' && isRealAvail;
+    if (btnTeo) btnTeo.classList.toggle('on', !isReal);
+    if (btnReales) btnReales.classList.toggle('on', isReal);
+    if (badge) {
+      badge.textContent = isReal ? 'Reales' : 'Teóricas';
+      badge.className = 'sim-badge-source' + (isReal ? ' reales' : '');
+    }
+
+    if (theoBox) theoBox.style.display = isReal ? 'none' : '';
+    if (realBox) {
+      realBox.style.display = isReal ? '' : 'none';
+      if (isReal) {
+        const count = getRealStopsForRoute(Sim.routeKey).length;
+        const countTxt = $('#simRealStopsCountTxt');
+        if (countTxt) countTxt.textContent = `${count} paradas reales optimizadas`;
+        const descTxt = $('#simRealStopsDescTxt');
+        if (descTxt) descTxt.textContent = `Puntos del GeoJSON vinculados al ramal ${Sim.routeKey === 'E-1' ? 'Manantial Sur' : 'San Alberto'} de la Línea E`;
+      }
+    }
+  }
+
+  function setStopsMode(mode) {
+    if (mode === 'reales' && !isRouteWithRealStops(Sim.routeKey)) return;
+    Sim.stopsMode = mode;
+    updateStopsSourceUI();
+    generateStops();
+    setupBuses();
+    updateKPIs();
   }
 
   function setSimulationMode(enabled) {
@@ -1352,13 +1849,19 @@
     if (routeSelect) {
       const options = D.propuesta.features.map(f => {
         const key = getPropKey(f);
-        return `<option value="${key}">Línea ${f.properties.Linea} · ${f.properties.Recorrido} (${fmt(f.properties.Longitud, 1)} km · Sector ${f.properties.sector})</option>`;
+        const hasStops = isRouteWithRealStops(key);
+        const tagReal = hasStops ? ' ★ [Paradas Reales GeoJSON]' : '';
+        return `<option value="${key}">Línea ${f.properties.Linea} · ${f.properties.Recorrido}${tagReal} (${fmt(f.properties.Longitud, 1)} km · Sector ${f.properties.sector})</option>`;
       });
       routeSelect.innerHTML = options.join('');
       routeSelect.addEventListener('change', e => {
         selectSimRoute(e.target.value, true);
       });
     }
+
+    // Toggle modo de paradas teóricas vs reales
+    $('#btnStopsTeo')?.addEventListener('click', () => setStopsMode('teoricas'));
+    $('#btnStopsReales')?.addEventListener('click', () => setStopsMode('reales'));
 
     // Play/Pause
     $('#simBtnPlay')?.addEventListener('click', () => {

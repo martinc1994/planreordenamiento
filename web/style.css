@@ -2314,3 +2314,363 @@ footer .small {
 .sim-terminal-pin.centro {
   background: #ea580c;
 }
+
+/* =======================================================
+   PARADAS OPTIMIZADAS (PROPUESTA SECTOR 5 - LÍNEA E)
+   ======================================================= */
+.paradas-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px !important;
+  clear: both;
+  font: 600 13px 'Poppins', sans-serif;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 40, 120, .18);
+  transition: all .2s ease;
+}
+
+.paradas-toggle:hover {
+  border-color: #0066ff;
+  color: #0066ff;
+  transform: translateY(-1px);
+}
+
+.paradas-toggle .pdot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  transition: .2s;
+}
+
+.paradas-toggle.on {
+  border-color: #0066ff;
+  color: #0052cc;
+  background: #f8fbff;
+}
+
+.paradas-toggle.on .pdot {
+  background: #0066ff;
+  box-shadow: 0 0 0 4px rgba(0, 102, 255, .2);
+}
+
+.badge-stops-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  margin-left: 6px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* SIMULADOR: TOGGLE DE FUENTE DE PARADAS (TEÓRICAS VS REALES) */
+.sim-stops-source-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sim-badge-source {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.sim-badge-source.reales {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.sim-source-toggle {
+  display: flex;
+  gap: 5px;
+  background: #e2e8f0;
+  padding: 3px;
+  border-radius: 8px;
+}
+
+.sim-src-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font: 600 11px 'Poppins', sans-serif;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+
+.sim-src-btn:hover:not(:disabled) {
+  color: #0f172a;
+}
+
+.sim-src-btn.on {
+  background: #ffffff;
+  color: var(--blue);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sim-src-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sim-stops-note {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.sim-real-stops-card {
+  background: #f0fdf4 !important;
+  border: 1px solid #bbf7d0 !important;
+}
+
+.sim-real-card-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sim-real-card-icon {
+  font-size: 22px;
+  flex: none;
+}
+
+.sim-real-card-inner b {
+  display: block;
+  font-size: 12px;
+  color: #15803d;
+}
+
+.sim-real-card-inner small {
+  display: block;
+  font-size: 11px;
+  color: #166534;
+  line-height: 1.3;
+}
+
+/* =======================================================
+   GESTIÓN DIFERENCIADA DE SECTORES (1 A 7)
+   ======================================================= */
+.sectors-control-card {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px 8px 8px 8px;
+  margin: 6px 0;
+  transition: all 0.2s ease;
+}
+
+.sectors-control-card:hover {
+  border-color: #cbd5e1;
+}
+
+.sectors-master-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.layer-sectors-master {
+  padding: 4px 0 !important;
+  flex: 1;
+}
+
+.btn-toggle-sec-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  color: var(--mut);
+  font: 600 11px 'Poppins', sans-serif;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-toggle-sec-sub:hover {
+  color: var(--blue);
+  border-color: var(--blue);
+}
+
+.btn-toggle-sec-sub .icon-chevron {
+  transition: transform 0.2s ease;
+}
+
+.btn-toggle-sec-sub.collapsed .icon-chevron {
+  transform: rotate(-90deg);
+}
+
+.sectors-subpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.sectors-subpanel.collapsed {
+  display: none;
+}
+
+.sectors-quick-bar {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-sec-action {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font: 600 10.5px 'Poppins', sans-serif;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-sec-action:hover {
+  background: #f1f5f9;
+  color: var(--ink);
+  border-color: #cbd5e1;
+}
+
+#btnSecPiloto:hover {
+  color: #0066ff;
+  border-color: #0066ff;
+}
+
+.sectors-individual-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sec-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.sec-item-row:hover {
+  background: #edf2f7;
+}
+
+.sec-item-row.active {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+}
+
+.sec-item-cb {
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+.sec-item-sw {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex: none;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sec-item-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sec-item-title {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.sec-item-line {
+  color: var(--mut);
+  font-size: 11px;
+}
+
+.sec-tag-piloto {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  line-height: 1.3;
+}
+
+.sec-tag-piloto.e {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.sec-tag-piloto.f {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.sec-item-km {
+  font-size: 11px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.sec-item-zoom {
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.sec-item-zoom:hover {
+  color: var(--blue);
+  background: #e2e8f0;
+}
+

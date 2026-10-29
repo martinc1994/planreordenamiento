@@ -196,6 +196,7 @@ DATA = {
     "actuales_afectados": fc([(p, pr(g)) for g, p in afectados_list]),
     "sectores": fc([(p, pr(g)) for g, p in sect]),
     "propuesta": fc([({**p, "sector": 5}, pr(g)) for g, p in e] + [({**p, "sector": 6}, pr(g)) for g, p in f6]),
+    "paradas_propuesta": load('Paradas_propuesta.geojson'),
     "recortes": fc([(p, mapping(transform(tr.transform, shape(m)))) for p, m in layers_clip]),
     "gpkg_E": fc([({"Long": p['Long']}, pr(g)) for g, p in gpk if g is not None and not g.is_empty]),
     "sin_cobertura": uncovered_fc,

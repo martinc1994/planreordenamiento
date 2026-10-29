@@ -107,8 +107,25 @@
                 style="background:#334155"></i><span>Trazos actuales afectados<small>31 ramales que al menos tocan los sectores 5 y 6</small></span></label>
             <label class="layer"><input type="checkbox" id="L-actuales"><i class="sw"
                 style="background:#64748b"></i><span>Red actual completa<small>42 ramales urbanos (toda la ciudad)</small></span></label>
-            <label class="layer"><input type="checkbox" id="L-sectores"><i class="sw"
-                style="background:linear-gradient(90deg,#cbd5e1,#94a3b8)"></i><span>Sectores<small>7 polígonos funcionales</small></span></label>
+            <!-- GESTIÓN DIFERENCIADA DE SECTORES (1 A 7) -->
+            <div class="sectors-control-card">
+              <div class="sectors-master-header">
+                <label class="layer layer-sectors-master"><input type="checkbox" id="L-sectores"><i class="sw"
+                    style="background:linear-gradient(90deg,#0284c7,#9333ea,#0066ff,#e4572e)"></i><span>Sectores funcionales<small id="sectorsSubtxt">7 polígonos delimitados (individuales)</small></span></label>
+                <button type="button" class="btn-toggle-sec-sub" id="btnToggleSecSub" title="Desplegar u ocultar lista de sectores">
+                  <span id="txtToggleSecSub">Detalle</span>
+                  <svg class="icon-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+              </div>
+              <div class="sectors-subpanel" id="sectorsSubpanel">
+                <div class="sectors-quick-bar">
+                  <button type="button" class="btn-sec-action" id="btnSecPiloto">Piloto (5 y 6)</button>
+                  <button type="button" class="btn-sec-action" id="btnSecAll">Todos (7)</button>
+                  <button type="button" class="btn-sec-action" id="btnSecNone">Limpiar</button>
+                </div>
+                <div class="sectors-individual-list" id="sectorsList"></div>
+              </div>
+            </div>
             <label class="layer"><input type="checkbox" id="L-E"><i class="sw" style="background:#0066ff"></i><span>Propuesta Línea E<small>Sector 5 · Activar todos los 4 recorridos</small></span></label>
             <label class="layer"><input type="checkbox" id="L-F"><i class="sw" style="background:#e4572e"></i><span>Propuesta Línea F<small>Sector 6 · Activar todos los 3 recorridos</small></span></label>
             <label class="layer"><input type="checkbox" id="L-cob"><i class="sw"
@@ -226,7 +243,27 @@
                   <span><b>Despacho Origen-Destino:</b> <span id="simDispatchSplitTxt">65% Cabecera Barrio (6 coches) · 35% Punto Céntrico (3 coches)</span></span>
                 </div>
 
-                <div class="sim-group-box">
+                <div class="sim-group-box" id="simStopsSourceBox">
+                  <div class="sim-stops-source-header">
+                    <span class="sim-box-title">Fuente de Paradas del Modelo</span>
+                    <span class="sim-badge-source" id="simBadgeSource">Teóricas</span>
+                  </div>
+                  <div class="sim-source-toggle" id="simSourceToggle">
+                    <button type="button" class="sim-src-btn on" id="btnStopsTeo" data-mode="teoricas">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 6H3M21 12H3M21 18H3"/></svg>
+                      Teóricas (Distancia)
+                    </button>
+                    <button type="button" class="sim-src-btn" id="btnStopsReales" data-mode="reales">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                      Reales Optimizadas (GeoJSON)
+                    </button>
+                  </div>
+                  <div class="sim-stops-note" id="simStopsNote">
+                    Esquema paramétrico a prueba según distancia en metros.
+                  </div>
+                </div>
+
+                <div class="sim-group-box" id="simTheoreticalInputsBox">
                   <span class="sim-box-title">Esquema de Paradas a Prueba (Metros)</span>
                   <div class="sim-inputs-two">
                     <div class="sim-input-pill">
@@ -242,6 +279,16 @@
                         <input type="number" id="simDistCentro" value="350" step="25" min="150" max="800">
                         <span>m</span>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sim-group-box sim-real-stops-card" id="simRealStopsBox" style="display:none">
+                  <div class="sim-real-card-inner">
+                    <div class="sim-real-card-icon">🚏</div>
+                    <div>
+                      <b id="simRealStopsCountTxt">66 paradas reales optimizadas</b>
+                      <small id="simRealStopsDescTxt">Puntos relevados con georreferenciación y distancias reales (GeoJSON)</small>
                     </div>
                   </div>
                 </div>
